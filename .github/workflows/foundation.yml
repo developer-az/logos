@@ -1,0 +1,59 @@
+name: foundation
+
+on:
+  push:
+    branches: [main]
+    paths: [addons/**, deploy/**, infra/**, .github/workflows/foundation.yml]
+  pull_request:
+    paths: [addons/**, deploy/**, infra/**, .github/workflows/foundation.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Render Strimzi Kafka resources
+        run: kubectl kustomize deploy/k8s/kafka > /dev/null
+      - name: Render Jira flow add-on overlay
+        run: |
+          # Secret value is generated per run; nothing secret is stored in the repo.
+          echo "secret=$(openssl rand -hex 32)" > addons/jira-flow/deploy/overlays/local/webhook.env
+          kubectl kustomize addons/jira-flow/deploy/overlays/local > /dev/null
+          kubectl kustomize addons/jira-flow/deploy/kafka > /dev/null
+      - name: Build AKS Bicep template
+        run: az bicep build --file infra/aks/main.bicep --stdout > /dev/null
+
+  jira-flow-dotnet:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: addons/jira-flow/services/metrics-service } }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with: { global-json-file: addons/jira-flow/services/metrics-service/global.json }
+      - run: dotnet test --configuration Release
+
+  jira-flow-node:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: addons/jira-flow/services/ingest-gateway } }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm, cache-dependency-path: addons/jira-flow/services/ingest-gateway/package-lock.json }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:coverage
+
+  jira-flow-smoke:
+    needs: [jira-flow-dotnet, jira-flow-node]
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: addons/jira-flow } }
+    steps:
+      - uses: actions/checkout@v5
+      - run: echo "JIRA_WEBHOOK_SECRET=$(openssl rand -hex 32)" > .env
+      - run: docker compose up --build -d --wait ingest-gateway metrics-service
+      - run: ./scripts/smoke.sh
+      - if: failure()
+        run: docker compose logs

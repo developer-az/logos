@@ -1,0 +1,49 @@
+# Topics from services/docs/events.md (the contract). In-cluster, Strimzi owns topics, so set
+# Kafka:ProvisionTopics=false on the services; their startup provisioning is for docker-compose.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: orders.events.v1
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    retention.ms: 604800000 # 7 days; services hold their own state in PostgreSQL
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: inventory.events.v1
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: orders.events.v1.dlt
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    retention.ms: 1209600000 # 14 days to inspect and replay
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: inventory.events.v1.dlt
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    retention.ms: 1209600000

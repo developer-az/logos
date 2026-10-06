@@ -1,0 +1,65 @@
+# Least-privilege SCRAM users, one per service. Strimzi writes each password to a Secret of the
+# same name in namespace "kafka"; sync it into the app namespace (External Secrets or similar).
+# Each consumer writes dead letters for the topic it reads.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: order-service
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: orders.events.v1 }
+        operations: [Write, Describe]
+      - resource: { type: topic, name: inventory.events.v1 }
+        operations: [Read, Describe]
+      - resource: { type: topic, name: inventory.events.v1.dlt }
+        operations: [Write, Describe]
+      - resource: { type: group, name: order-service }
+        operations: [Read]
+      - resource: { type: cluster }
+        operations: [IdempotentWrite]
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: inventory-service
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: inventory.events.v1 }
+        operations: [Write, Describe]
+      - resource: { type: topic, name: orders.events.v1 }
+        operations: [Read, Describe]
+      - resource: { type: topic, name: orders.events.v1.dlt }
+        operations: [Write, Describe]
+      - resource: { type: group, name: inventory-service }
+        operations: [Read]
+      - resource: { type: cluster }
+        operations: [IdempotentWrite]
+---
+# Read-only consumer for the live dashboard (plan step 3).
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: dashboard
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: orders.events.v1 }
+        operations: [Read, Describe]
+      - resource: { type: topic, name: inventory.events.v1 }
+        operations: [Read, Describe]
+      - resource: { type: group, name: dashboard }
+        operations: [Read]

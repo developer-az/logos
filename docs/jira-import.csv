@@ -1,0 +1,32 @@
+Issue ID,Issue Type,Summary,Description,Parent,Story Points,Priority,Labels,Labels
+E1,Epic,Foundation and repo,"logos repo, conventions and the dev loop.",,,High,logos,
+E1-S1,Story,Create logos repo and push foundation and services,"Acceptance criteria: Repo developer-az/logos exists with services/, foundation docs and addons/; main protected, CI required.",E1,1,Highest,repo,
+E1-S2,Story,Root README and contributor guide,Acceptance criteria: Root README explains the system in one diagram and how to run it in one command; CONTRIBUTING covers branch naming with Jira keys.,E1,2,High,docs,
+E1-S3,Story,Upgrade services to .NET 10 LTS,Acceptance criteria: All projects target net10.0; tests and integration tests green; Dockerfile uses 10.0 images (D-6).,E1,2,High,dotnet,
+E1-S4,Story,Align local tooling versions,"Acceptance criteria: Compose uses the same Kafka major version as the cluster; kafka-ui swapped to kafbat/kafka-ui (D-8, D-9).",E1,1,Medium,kafka,
+E2,Epic,Order and inventory services,C# saga over Kafka (services thread).,,,High,logos,
+E2-S1,Story,Order and inventory saga with outbox and inbox,"Acceptance criteria: Built: place, confirm, reject, cancel; no overselling under concurrency; integration tests over real Kafka and PostgreSQL.",E2,8,Highest,dotnet,kafka
+E2-S2,Story,Kafka SASL/TLS configuration,"Acceptance criteria: Services accept SCRAM username, password and CA path from config; connect to Strimzi TLS listener in a kind test.",E2,3,High,dotnet,security
+E2-S3,Story,Product catalog owns prices,Acceptance criteria: Order service looks up unit prices instead of trusting the client; price change event published.,E2,5,Medium,dotnet,
+E2-S4,Story,Shipment step after confirmation,Acceptance criteria: Confirmed orders produce shipment.requested; documented in events.md.,E2,5,Low,dotnet,kafka
+E2-S5,Story,DLT inspection and replay,Acceptance criteria: Endpoint or CLI lists dead letters with error headers and re-publishes selected ones.,E2,3,Medium,kafka,ops
+E3,Epic,Live dashboard,"TypeScript API and UI over the event streams, tested with Jest.",,,High,logos,
+E3-S1,Story,Dashboard API consumes both topics,"Acceptance criteria: Node service consumes orders and inventory events, dedupes on eventId, ignores unknown eventTypes, keeps highest version per SKU.",E3,5,Highest,typescript,kafka
+E3-S2,Story,Projection logic unit tests in Jest,"Acceptance criteria: Jest covers out-of-order versions, duplicate events, unknown types, saga state per correlationId; coverage gate in CI.",E3,3,Highest,jest,
+E3-S3,Story,Live push to the browser,Acceptance criteria: SSE or WebSocket stream of order status and stock levels; Jest tests for the HTTP and stream layer.,E3,3,High,typescript,jest
+E3-S4,Story,Live UI,"Acceptance criteria: Page shows stock per SKU, order funnel (placed, confirmed, rejected, cancelled) and a per-order saga timeline by correlationId.",E3,5,High,frontend,
+E3-S5,Story,Contract tests against events.md,Acceptance criteria: Fixture events shared with the C# tests; both sides fail if the envelope or payloads drift.,E3,2,High,jest,dotnet
+E4,Epic,Ship it: Kubernetes and CI/CD,Run logos on a real cluster with automated delivery.,,,High,logos,
+E4-S1,Story,CI per component,"Acceptance criteria: GitHub Actions: dotnet test (with integration tests via Docker), Jest with coverage, kustomize render; required on PRs.",E4,3,Highest,ci,
+E4-S2,Story,Images to GHCR tagged by SHA,"Acceptance criteria: Main builds and pushes order, inventory and dashboard images.",E4,2,High,ci,containers
+E4-S3,Story,Kubernetes app manifests,"Acceptance criteria: Deployments, Services, probes, PDBs, resources for order, inventory, dashboard; PostgreSQL via operator or managed DB; ProvisionTopics off.",E4,5,Highest,k8s,
+E4-S4,Story,Strimzi Kafka on the cluster,Acceptance criteria: deploy/k8s/kafka applied; topics and SCRAM users match events.md; secrets synced to the app namespace.,E4,3,High,k8s,kafka
+E4-S5,Story,Local kind bring-up in one command,"Acceptance criteria: Script creates kind, installs Strimzi, deploys everything, runs an end-to-end order smoke test.",E4,3,High,k8s,
+E4-S6,Story,Public demo with TLS,"Acceptance criteria: Ingress + cert-manager on the chosen cluster; dashboard public, write APIs rate-limited or behind a key.",E4,3,High,k8s,security
+E4-S7,Story,Load generator,Acceptance criteria: Deployment that places and cancels realistic orders continuously so the demo is always live.,E4,3,Medium,demo,
+E4-S8,Story,Observability,"Acceptance criteria: OpenTelemetry traces across HTTP and Kafka using correlationId; Grafana panels for consumer lag, DLT rate, saga latency.",E4,5,Medium,observability,
+E4-S9,Story,CD to the cluster,Acceptance criteria: Merges to main deploy automatically (Argo CD or Actions); rollback documented.,E4,3,Medium,ci,k8s
+E5,Epic,Jira in the workflow,"Make Jira part of how logos is built, not just where tasks sit.",,,High,logos,
+E5-S1,Story,Import this backlog into Jira,Acceptance criteria: Epics and stories created in the logos Jira project with parents and points.,E5,1,Highest,jira,
+E5-S2,Story,Link commits and PRs to Jira,Acceptance criteria: Branch names and PR titles carry issue keys; GitHub for Jira app shows dev status on issues.,E5,1,High,jira,ci
+E5-S3,Story,Jira flow add-on (optional),Acceptance criteria: addons/jira-flow deployed against the logos board; lead and cycle time P50/P85 shown on the dashboard.,E5,3,Low,jira,addon
