@@ -1,10 +1,5 @@
-bin/
-obj/
-*.user
-.vs/
-TestResults/
-.env
 node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+.env

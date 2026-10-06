@@ -1,0 +1,29 @@
+# The dashboard on top of the services' local stack (Kafka, Postgres, order and inventory
+# services). Expects the services to be the sibling folder ../services, as in the repo.
+#
+#   docker compose up --build                      # everything; dashboard on http://localhost:8080
+#   docker compose --profile simulator up --build  # plus synthetic traffic, no clicking needed
+include:
+  - ../services/docker-compose.yml
+
+services:
+  dashboard:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      LOW_STOCK_THRESHOLD: "5"
+    depends_on:
+      kafka: { condition: service_healthy }
+      # The services provision the topics and their .dlt topics on startup.
+      order-service: { condition: service_started }
+      inventory-service: { condition: service_started }
+
+  simulator:
+    profiles: [simulator]
+    build: { context: ., target: build }
+    command: ["npx", "tsx", "packages/api/src/simulator/run.ts", "--rate", "5"]
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      kafka: { condition: service_healthy }

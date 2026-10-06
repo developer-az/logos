@@ -1,0 +1,38 @@
+{
+  "name": "orderflow-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Live order and inventory dashboard fed by Kafka events",
+  "workspaces": [
+    "packages/contracts",
+    "packages/api",
+    "packages/web"
+  ],
+  "scripts": {
+    "build": "npm run build -w @orderflow/contracts && npm run build -w @orderflow/api && npm run build -w @orderflow/web",
+    "typecheck": "tsc -b packages/contracts packages/api && tsc -p tsconfig.test.json && tsc -p packages/web --noEmit",
+    "test": "jest",
+    "test:unit": "jest --selectProjects contracts api web",
+    "test:integration": "jest --selectProjects integration --runInBand",
+    "test:coverage": "jest --selectProjects contracts api web --coverage",
+    "dev:api": "npm run dev -w @orderflow/api",
+    "dev:web": "npm run dev -w @orderflow/web",
+    "simulate": "npm run simulate -w @orderflow/api"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.16.13",
+    "@swc/jest": "^0.2.39",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.20.5",
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
+    "typescript": "~5.9.3"
+  }
+}

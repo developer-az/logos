@@ -1,0 +1,14 @@
+{
+  "name": "@orderflow/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Event contracts and dashboard DTOs shared by the API and web app",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}
