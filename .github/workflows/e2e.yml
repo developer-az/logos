@@ -1,0 +1,42 @@
+# End to end on a throwaway kind cluster: builds the images, installs Strimzi, applies
+# deploy/k8s/overlays/local and runs scripts/smoke.sh (an order confirmed, rejected and
+# cancelled through Kafka, and seen by the dashboard). The same script a developer runs locally.
+name: e2e
+
+on:
+  pull_request:
+    paths: [services/**, dashboard/**, deploy/**, scripts/**, .github/workflows/e2e.yml]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: logos
+          wait: 120s
+      - name: Bring up logos and run the smoke test
+        run: scripts/kind-up.sh
+        env:
+          CLUSTER: logos
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide
+          kubectl -n logos get kafka,kafkanodepool,kafkatopic,kafkauser,events --sort-by=.lastTimestamp || true
+          for d in order-service inventory-service dashboard load-generator; do
+            echo "::group::logs $d"; kubectl -n logos logs "deploy/$d" --all-containers --tail=200 || true; echo "::endgroup::"
+          done
+          kubectl -n strimzi logs deploy/strimzi-cluster-operator --tail=200 || true

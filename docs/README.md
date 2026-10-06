@@ -7,7 +7,7 @@
 | 1. Foundation | Architecture, decisions, Jira epics, Strimzi Kafka, AKS | `docs/`, `infra/aks/` | Done (not yet deployed) |
 | 2. C# event services | Order + inventory services, saga over Kafka, outbox/inbox, PostgreSQL | `services/` | Built; .NET 10 + Kafka TLS/SCRAM in progress |
 | 3. Live dashboard | TypeScript API + UI consuming the events, Jest tests | `dashboard/` | Not started |
-| 4. Ship it | Kubernetes manifests, CI/CD, Jira wired into the workflow | `deploy/k8s/`, `.github/`, `scripts/` | In progress (Ship it thread, incl. Strimzi Kafka) |
+| 4. Ship it | Kubernetes manifests, CI/CD, Jira wired into the workflow | `deploy/k8s/`, `.github/`, `scripts/` | Built; AKS deploy waits on the cluster ([deploy/README.md](../deploy/README.md)) |
 | Optional | Jira flow add-on: lead/cycle time from the project's own Jira board | `addons/jira-flow/` | Working, tested |
 
 The event contract in **`services/docs/events.md`** is the source of truth. Anything here that disagrees with it is a bug in this folder.

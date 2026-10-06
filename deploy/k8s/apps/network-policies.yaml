@@ -1,0 +1,59 @@
+# Ingress is denied by default in the namespace; each policy below opens one path. Strimzi creates
+# the policies for the Kafka pods itself, limited to the apps by the listener's networkPolicyPeers
+# (deploy/k8s/kafka/kafka-cluster.yaml). Port-forwarding goes through the kubelet and is unaffected.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-from-services
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: postgres }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app.kubernetes.io/name, operator: In, values: [order-service, inventory-service] }
+      ports:
+        - { port: 5432, protocol: TCP }
+---
+# The dashboard is the public face of the demo.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dashboard-from-anywhere
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: dashboard }
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - { port: 8080, protocol: TCP }
+---
+# The write APIs take traffic from the load generator and from the gateway's proxies (the AKS
+# overlay publishes the order API, rate limited, through Envoy Gateway).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: apis-from-load-generator-and-gateway
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/name, operator: In, values: [order-service, inventory-service] }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: load-generator }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: envoy-gateway-system }
+      ports:
+        - { port: 8080, protocol: TCP }

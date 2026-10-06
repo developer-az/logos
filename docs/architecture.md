@@ -39,8 +39,10 @@ logos/
   dashboard/                TypeScript API + UI, Jest (plan step 3)
   deploy/k8s/
     kafka/                  Strimzi cluster, topics, users
-    apps/                   order, inventory, dashboard, postgres (plan step 4)
-    overlays/{local,cloud}/
+    apps/                   order, inventory, dashboard, postgres, load generator, network policies
+    overlays/{local,aks}/   kind and the AKS demo
+    platform/aks/           GatewayClass, Let's Encrypt issuer
+  scripts/                  kind-up (one command), smoke test, AKS bootstrap
   addons/jira-flow/         optional Jira webhook → Kafka → flow metrics
   infra/aks/                AKS cluster (Bicep) for the public demo
   docs/                     architecture, decisions, backlog

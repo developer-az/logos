@@ -1,0 +1,47 @@
+# Requires the Strimzi operator 1.x (https://strimzi.io, kafka.strimzi.io/v1 API), watching the
+# namespace this is applied to. scripts/kind-up.sh and scripts/aks-bootstrap.sh install it.
+# The overlays put the cluster, its topics and users in the same namespace as the apps ("logos"),
+# so Strimzi writes each user's password Secret and the cluster CA Secret right where pods mount them.
+# KRaft mode with node pools; 3 combined controller+broker nodes gives a real quorum.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: dual-role
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  replicas: 3
+  roles: [controller, broker]
+  storage:
+    type: jbod
+    volumes:
+      - { id: 0, type: persistent-claim, size: 10Gi, deleteClaim: false, kraftMetadata: shared }
+---
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: logos-kafka
+spec:
+  kafka:
+    version: 4.3.1
+    listeners:
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+        authentication: { type: scram-sha-512 }
+        # Strimzi turns this into the NetworkPolicy for the listener: only the apps may connect.
+        networkPolicyPeers:
+          - podSelector:
+              matchExpressions:
+                - { key: app.kubernetes.io/name, operator: In, values: [order-service, inventory-service, dashboard] }
+    authorization: { type: simple }
+    config:
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      default.replication.factor: 3
+      min.insync.replicas: 2
+      auto.create.topics.enable: false
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}

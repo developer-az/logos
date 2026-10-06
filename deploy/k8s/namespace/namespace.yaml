@@ -1,0 +1,9 @@
+# The one namespace for logos. Kafka (Strimzi), PostgreSQL and the apps all live here, so the Secrets
+# Strimzi writes (user passwords, cluster CA) are mounted directly, with no cross-namespace sync.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logos
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted

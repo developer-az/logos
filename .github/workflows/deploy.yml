@@ -1,0 +1,87 @@
+# Continuous delivery to the AKS demo (backlog E4-S9). After images.yml publishes a commit's
+# images, this applies deploy/k8s/overlays/aks with those SHA tags, waits for the rollout, runs
+# the smoke test through the cluster, and rolls the apps back if anything fails.
+#
+# Off until the cluster exists: run scripts/aks-bootstrap.sh, set the repository variables it
+# prints (including AKS_DEPLOY_ENABLED=true), and optionally add reviewers to the "aks-demo"
+# environment to require approval per deploy. Azure sign-in is OIDC; no Azure secret is stored.
+# Manual rollback to any earlier commit: run this workflow by hand with that commit's SHA.
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [images]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit SHA whose images to deploy (defaults to the latest on main)
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-aks
+  cancel-in-progress: false
+
+jobs:
+  aks:
+    if: >-
+      vars.AKS_DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: aks-demo
+      url: https://${{ vars.DEMO_HOST }}
+    env:
+      SHA: ${{ inputs.sha || github.event.workflow_run.head_sha || github.sha }}
+      OVERLAY: deploy/k8s/overlays/aks
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SHA }}
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Install kustomize
+        run: |
+          mkdir -p "$HOME/bin" && echo "$HOME/bin" >> "$GITHUB_PATH"
+          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.2/kustomize_v5.8.2_linux_amd64.tar.gz" | tar -xz -C "$HOME/bin"
+      - name: Cluster credentials
+        run: az aks get-credentials -g "${{ vars.AKS_RESOURCE_GROUP }}" -n "${{ vars.AKS_CLUSTER }}" --overwrite-existing
+      - name: Set image tags and demo settings
+        working-directory: ${{ env.OVERLAY }}
+        env:
+          DEMO_HOST: ${{ vars.DEMO_HOST }}
+          KEY_VAULT_URL: ${{ vars.KEY_VAULT_URL }}
+          KEY_VAULT_CLIENT_ID: ${{ vars.KEY_VAULT_CLIENT_ID }}
+        run: |
+          printf 'DEMO_HOST=%s\nKEY_VAULT_URL=%s\nKEY_VAULT_CLIENT_ID=%s\n' "$DEMO_HOST" "$KEY_VAULT_URL" "$KEY_VAULT_CLIENT_ID" > demo.env
+          for app in order-service inventory-service dashboard; do
+            kustomize edit set image "ghcr.io/developer-az/logos-$app=ghcr.io/developer-az/logos-$app:$SHA"
+          done
+          kustomize build . > "$RUNNER_TEMP/rendered.yaml"
+          grep -E 'image: ghcr.io' "$RUNNER_TEMP/rendered.yaml"
+      - name: Apply
+        run: kubectl apply --server-side --force-conflicts -f "$RUNNER_TEMP/rendered.yaml"
+      - name: Wait for the rollout
+        run: |
+          kubectl -n logos wait kafka/logos-kafka --for=condition=Ready --timeout=15m
+          for app in order-service inventory-service dashboard load-generator; do
+            kubectl -n logos rollout status "deploy/$app" --timeout=10m
+          done
+      - name: Smoke test
+        run: scripts/smoke.sh
+      - name: Roll back the apps
+        if: failure()
+        run: |
+          for app in order-service inventory-service dashboard; do
+            kubectl -n logos rollout undo "deploy/$app" || true
+          done
+          kubectl -n logos get pods

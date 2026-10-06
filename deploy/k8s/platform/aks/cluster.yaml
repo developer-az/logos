@@ -1,0 +1,22 @@
+# Cluster-scoped pieces of the AKS demo platform, applied once per cluster after installing
+# Envoy Gateway and cert-manager (deploy/README.md). Kept out of the namespaced overlay so the
+# overlay's namespace never lands on them.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef: { name: letsencrypt-account-key }
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs: [{ name: logos, namespace: logos, kind: Gateway }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
