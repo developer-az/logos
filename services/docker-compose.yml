@@ -1,0 +1,77 @@
+# Local stack: Kafka (KRaft), PostgreSQL, both services, and Kafka UI.
+#   cp .env.example .env   # then set POSTGRES_PASSWORD
+#   docker compose up --build
+# Order API:     http://localhost:5001/swagger
+# Inventory API: http://localhost:5002/swagger
+# Kafka UI:      http://localhost:8085
+services:
+  kafka:
+    image: apache/kafka:3.8.0
+    ports: ["9094:9094"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:9094,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
+  postgres:
+    image: postgres:16-alpine
+    ports: ["5432:5432"]
+    env_file: .env   # provides POSTGRES_PASSWORD; copy .env.example
+    environment:
+      POSTGRES_USER: postgres
+    volumes:
+      - ./deploy/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  order-service:
+    build: { context: ., args: { SERVICE: Order.Service } }
+    ports: ["5001:8080"]
+    environment:
+      ConnectionStrings__Orders: Host=postgres;Database=orders;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Kafka__BootstrapServers: kafka:9092
+    depends_on:
+      kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
+  inventory-service:
+    build: { context: ., args: { SERVICE: Inventory.Service } }
+    ports: ["5002:8080"]
+    environment:
+      ConnectionStrings__Inventory: Host=postgres;Database=inventory;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Kafka__BootstrapServers: kafka:9092
+      Inventory__SeedDemoData: "true"
+    depends_on:
+      kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    ports: ["8085:8080"]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      kafka: { condition: service_healthy }
+
+volumes:
+  pgdata:
