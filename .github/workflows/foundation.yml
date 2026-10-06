@@ -3,9 +3,9 @@ name: foundation
 on:
   push:
     branches: [main]
-    paths: [addons/**, deploy/**, infra/**, .github/workflows/foundation.yml]
+    paths: [addons/**, infra/**, .github/workflows/foundation.yml]
   pull_request:
-    paths: [addons/**, deploy/**, infra/**, .github/workflows/foundation.yml]
+    paths: [addons/**, infra/**, .github/workflows/foundation.yml]
 
 permissions:
   contents: read
@@ -15,8 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Render Strimzi Kafka resources
-        run: kubectl kustomize deploy/k8s/kafka > /dev/null
       - name: Render Jira flow add-on overlay
         run: |
           # Secret value is generated per run; nothing secret is stored in the repo.

@@ -10,7 +10,7 @@
 | D-4 | Event contract lives in `services/docs/events.md`; JSON envelope with `eventId`, `correlationId`, `causationId`, `schemaVersion` | Accepted | Built by the services thread. Move to a schema registry (Avro/Protobuf) if a non-.NET producer appears. |
 | D-5 | Choreographed saga, transactional outbox + inbox, PostgreSQL per service | Accepted | See services README. Revisit orchestration if payment or shipping joins. |
 | D-6 | Upgrade services from .NET 8 to .NET 10 (LTS) | Accepted | Anthony, 2026-10-06; done in the services' .NET 10 PR. | .NET 8 support ends 2026-11-10, about five weeks out. A portfolio repo on an unsupported runtime reads badly, and the upgrade is cheapest before more code lands. |
-| D-7 | Kafka on Kubernetes via Strimzi, KRaft, TLS + SCRAM + ACLs, one user per service | Proposed | Drafted in `deploy/k8s/kafka/`. Managed alternatives: Confluent Cloud, Azure Event Hubs (Kafka API), AWS MSK. |
+| D-7 | Kafka on Kubernetes via Strimzi, KRaft, TLS + SCRAM + ACLs, one user per service | Proposed | Lives in `deploy/k8s/kafka/` (Ship it PR). Managed alternatives: Confluent Cloud, Azure Event Hubs (Kafka API), AWS MSK. |
 | D-8 | Align Kafka image versions (compose uses 3.8.0, cluster manifest 4.1.0) | Proposed | Test against the same major version you deploy. |
 | D-9 | Replace `provectuslabs/kafka-ui` with the maintained fork `kafbat/kafka-ui` | Proposed | The original has had no releases since 2024. |
 | D-10 | Jest for TypeScript, xUnit for C# | Accepted | Jest doesn't run .NET; each language keeps its native runner. |
