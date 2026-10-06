@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node10",
+    "noEmit": true,
+    "declaration": false,
+    "types": ["node", "jest"],
+    "baseUrl": ".",
+    "paths": { "@orderflow/contracts": ["packages/contracts/src"] }
+  },
+  "include": ["packages/contracts/src", "packages/contracts/test", "packages/api/src", "packages/api/test"]
+}

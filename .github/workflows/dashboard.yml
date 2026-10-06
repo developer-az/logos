@@ -1,0 +1,59 @@
+name: dashboard
+
+on:
+  pull_request:
+    paths: ['dashboard/**', 'services/docs/events.md', '.github/workflows/dashboard.yml']
+  push:
+    branches: [main]
+    paths: ['dashboard/**', 'services/docs/events.md', '.github/workflows/dashboard.yml']
+
+defaults:
+  run:
+    working-directory: dashboard
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:coverage
+      - run: npm run build
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start Kafka
+        working-directory: .
+        run: |
+          docker run -d --name kafka -p 9092:9092 apache/kafka:3.9.1
+          for i in $(seq 1 60); do
+            docker exec kafka /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          docker logs kafka; exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+      - run: npm run test:integration
+        env:
+          KAFKA_BROKERS: localhost:9092
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t orderflow-dashboard:ci .
