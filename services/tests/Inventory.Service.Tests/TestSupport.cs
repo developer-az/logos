@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
@@ -46,6 +47,8 @@ public sealed class InventoryApiFactory : WebApplicationFactory<InventoryService
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<InventoryDbContext>>();
+            // EF Core 9+ also registers the provider through this; remove it or Npgsql and SQLite both load.
+            services.RemoveAll<IDbContextOptionsConfiguration<InventoryDbContext>>();
             services.AddDbContext<InventoryDbContext>(o => o.UseSqlite(_connection));
         });
     }

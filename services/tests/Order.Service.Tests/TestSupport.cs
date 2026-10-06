@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
@@ -49,6 +50,8 @@ public sealed class OrderApiFactory : WebApplicationFactory<OrderServiceApp>
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<OrdersDbContext>>();
+            // EF Core 9+ also registers the provider through this; remove it or Npgsql and SQLite both load.
+            services.RemoveAll<IDbContextOptionsConfiguration<OrdersDbContext>>();
             services.AddDbContext<OrdersDbContext>(o => o.UseSqlite(_connection));
         });
     }

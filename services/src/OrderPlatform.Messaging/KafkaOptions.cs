@@ -1,3 +1,5 @@
+using Confluent.Kafka;
+
 namespace OrderPlatform.Messaging;
 
 public sealed class KafkaOptions
@@ -8,10 +10,20 @@ public sealed class KafkaOptions
     public string ClientId { get; set; } = Environment.MachineName;
     public string GroupId { get; set; } = "";
 
+    /// <summary>Plaintext for local compose; SaslSsl in-cluster (Strimzi TLS listener with SCRAM).</summary>
+    public SecurityProtocol SecurityProtocol { get; set; } = SecurityProtocol.Plaintext;
+    public SaslMechanism SaslMechanism { get; set; } = SaslMechanism.ScramSha512;
+    public string? SaslUsername { get; set; }
+    public string? SaslPassword { get; set; }
+
+    /// <summary>PEM file of the cluster CA (Strimzi: the &lt;cluster&gt;-cluster-ca-cert Secret, key ca.crt).</summary>
+    public string? SslCaLocation { get; set; }
+
     /// <summary>Turns the Kafka consumer and outbox dispatcher off (used by API-only tests).</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Creates the platform's topics on startup if they are missing.</summary>
+    /// <summary>Creates the platform's topics on startup if they are missing. Turn off where
+    /// topics are managed elsewhere (Strimzi KafkaTopic resources in Kubernetes).</summary>
     public bool ProvisionTopics { get; set; } = true;
     public int TopicPartitions { get; set; } = 3;
     public short ReplicationFactor { get; set; } = 1;
@@ -21,4 +33,19 @@ public sealed class KafkaOptions
 
     public TimeSpan OutboxPollInterval { get; set; } = TimeSpan.FromMilliseconds(250);
     public int OutboxBatchSize { get; set; } = 100;
+
+    /// <summary>Copies connection and security settings onto a producer, consumer or admin config.</summary>
+    public T Apply<T>(T config) where T : ClientConfig
+    {
+        config.BootstrapServers = BootstrapServers;
+        config.SecurityProtocol = SecurityProtocol;
+        if (SecurityProtocol is SecurityProtocol.SaslSsl or SecurityProtocol.SaslPlaintext)
+        {
+            config.SaslMechanism = SaslMechanism;
+            config.SaslUsername = SaslUsername;
+            config.SaslPassword = SaslPassword;
+        }
+        if (SslCaLocation is not null) config.SslCaLocation = SslCaLocation;
+        return config;
+    }
 }
