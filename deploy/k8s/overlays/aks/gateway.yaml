@@ -1,0 +1,90 @@
+# Public entry point (backlog E4-S6), using the Gateway API with Envoy Gateway and a Let's Encrypt
+# certificate from cert-manager. Requires both, plus deploy/k8s/platform/aks (the GatewayClass and
+# ClusterIssuer), installed on the cluster; see deploy/README.md.
+#   https://<DEMO_HOST>/                   live dashboard
+#   https://<DEMO_HOST>/order-api/orders   order API (place, get, cancel), rate limited
+# The inventory API stays internal: setting stock is an operator action.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: logos
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt # cert-manager creates the Certificate for the https listener
+spec:
+  gatewayClassName: envoy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: DEMO_HOST
+      allowedRoutes: { namespaces: { from: Same } }
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: DEMO_HOST
+      tls:
+        mode: Terminate
+        certificateRefs: [{ name: logos-tls }]
+      allowedRoutes: { namespaces: { from: Same } }
+---
+# Plain HTTP only redirects to HTTPS (the ACME challenge route cert-manager adds takes precedence).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: https-redirect
+spec:
+  parentRefs: [{ name: logos, sectionName: http }]
+  hostnames: [DEMO_HOST]
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect: { scheme: https, statusCode: 301 }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+spec:
+  parentRefs: [{ name: logos, sectionName: https }]
+  hostnames: [DEMO_HOST]
+  rules:
+    # Server-sent events: the response never ends, so no request timeout.
+    - matches: [{ path: { type: Exact, value: /api/stream } }]
+      timeouts: { request: 0s }
+      backendRefs: [{ name: dashboard, port: 80 }]
+    # Prometheus metrics are for the cluster, not the internet.
+    - matches: [{ path: { type: PathPrefix, value: /metrics } }]
+      filters:
+        - type: RequestRedirect
+          requestRedirect: { path: { type: ReplaceFullPath, replaceFullPath: / }, statusCode: 302 }
+    - matches: [{ path: { type: PathPrefix, value: / } }]
+      backendRefs: [{ name: dashboard, port: 80 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: order-api
+spec:
+  parentRefs: [{ name: logos, sectionName: https }]
+  hostnames: [DEMO_HOST]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /order-api/orders } }]
+      filters:
+        - type: URLRewrite
+          urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: /orders } }
+      backendRefs: [{ name: order-service, port: 80 }]
+---
+# A public write API needs a ceiling: 120 requests a minute per gateway proxy. Local limits keep
+# the demo free of a Redis dependency; per-client limits would need Envoy Gateway's global mode.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: order-api-rate-limit
+spec:
+  targetRefs:
+    - { group: gateway.networking.k8s.io, kind: HTTPRoute, name: order-api }
+  rateLimit:
+    type: Local
+    local:
+      rules:
+        - limit: { requests: 120, unit: Minute }

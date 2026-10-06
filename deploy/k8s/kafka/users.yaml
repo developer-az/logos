@@ -1,0 +1,68 @@
+# Least-privilege SCRAM users, one per service. Strimzi writes each password to a Secret of the
+# same name in the same namespace, which the app Deployments read directly.
+# Each consumer writes dead letters for the topic it reads.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: order-service
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: orders.events.v1 }
+        operations: [Write, Describe]
+      - resource: { type: topic, name: inventory.events.v1 }
+        operations: [Read, Describe]
+      - resource: { type: topic, name: inventory.events.v1.dlt }
+        operations: [Write, Describe]
+      - resource: { type: group, name: order-service }
+        operations: [Read]
+      - resource: { type: cluster }
+        operations: [IdempotentWrite]
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: inventory-service
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: inventory.events.v1 }
+        operations: [Write, Describe]
+      - resource: { type: topic, name: orders.events.v1 }
+        operations: [Read, Describe]
+      - resource: { type: topic, name: orders.events.v1.dlt }
+        operations: [Write, Describe]
+      - resource: { type: group, name: inventory-service }
+        operations: [Read]
+      - resource: { type: cluster }
+        operations: [IdempotentWrite]
+---
+# Consumer for the live dashboard (plan step 3). Every replica joins its own consumer group
+# (KAFKA_GROUP_PREFIX + host + start time) so it replays all partitions into its in-memory read
+# model, hence the prefixed group ACL. Messages it cannot parse go to the source topic's .dlt.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: dashboard
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: orders.events.v1 }
+        operations: [Read, Describe]
+      - resource: { type: topic, name: inventory.events.v1 }
+        operations: [Read, Describe]
+      - resource: { type: topic, name: orders.events.v1.dlt }
+        operations: [Write, Describe]
+      - resource: { type: topic, name: inventory.events.v1.dlt }
+        operations: [Write, Describe]
+      - resource: { type: group, name: dashboard, patternType: prefix }
+        operations: [Read]

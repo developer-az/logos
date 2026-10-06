@@ -1,0 +1,13 @@
+# The logos applications. Namespace and image tags come from the overlays.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+  - pairs: { app.kubernetes.io/part-of: logos }
+    includeSelectors: false
+resources:
+  - postgres.yaml
+  - order-service.yaml
+  - inventory-service.yaml
+  - dashboard.yaml
+  - load-generator.yaml
+  - network-policies.yaml

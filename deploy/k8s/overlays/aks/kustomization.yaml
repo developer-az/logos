@@ -1,0 +1,47 @@
+# AKS public demo (decision D-11, infra/aks): three Kafka brokers, two replicas of each service,
+# HTTPS through Envoy Gateway, database passwords from Key Vault. Image tags are set to the
+# commit SHA by .github/workflows/deploy.yml; demo.env holds the non-secret settings.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: logos
+resources:
+  - ../../namespace
+  - ../../kafka
+  - ../../apps
+  - gateway.yaml
+  - external-secrets.yaml
+images:
+  - { name: ghcr.io/developer-az/logos-order-service, newTag: latest }
+  - { name: ghcr.io/developer-az/logos-inventory-service, newTag: latest }
+  - { name: ghcr.io/developer-az/logos-dashboard, newTag: latest }
+configMapGenerator:
+  - name: demo-settings
+    envs: [demo.env]
+    options:
+      annotations: { config.kubernetes.io/local-config: "true" } # input to replacements only
+patches:
+  # Three brokers share 2 vCPU / 8 GiB nodes with everything else: bound their memory.
+  - target: { kind: KafkaNodePool, name: dual-role }
+    patch: |
+      - op: add
+        path: /spec/resources
+        value: { requests: { cpu: 250m, memory: 1Gi }, limits: { memory: 2Gi } }
+      - op: add
+        path: /spec/jvmOptions
+        value: { "-Xms": 512m, "-Xmx": 1g }
+replacements:
+  - source: { kind: ConfigMap, name: demo-settings, fieldPath: data.DEMO_HOST }
+    targets:
+      - select: { kind: Gateway, name: logos }
+        fieldPaths: [spec.listeners.*.hostname]
+      - select: { kind: HTTPRoute }
+        fieldPaths: [spec.hostnames.0]
+  - source: { kind: ConfigMap, name: demo-settings, fieldPath: data.KEY_VAULT_URL }
+    targets:
+      - select: { kind: SecretStore, name: azure-key-vault }
+        fieldPaths: [spec.provider.azurekv.vaultUrl]
+  - source: { kind: ConfigMap, name: demo-settings, fieldPath: data.KEY_VAULT_CLIENT_ID }
+    targets:
+      - select: { kind: ServiceAccount, name: key-vault-reader }
+        fieldPaths:
+          - metadata.annotations.[azure.workload.identity/client-id]

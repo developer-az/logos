@@ -1,0 +1,35 @@
+# Links pull requests to Jira issues and moves them along the board (backlog E5-S2):
+# open or ready -> review status, merged -> done. See .github/jira/README.md for setup.
+# Until Jira is configured it only reports the issue keys it finds in the title or branch.
+name: jira
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize, ready_for_review, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/jira
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Test the sync script
+        run: node --test .github/jira/*.test.mjs
+      - name: Sync with Jira
+        run: node .github/jira/jira-sync.mjs
+        env:
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_PROJECT_KEY: ${{ vars.JIRA_PROJECT_KEY || 'LOGOS' }}
+          JIRA_REVIEW_STATUS: ${{ vars.JIRA_REVIEW_STATUS }}
+          JIRA_DONE_STATUS: ${{ vars.JIRA_DONE_STATUS }}
+          JIRA_KEY_REQUIRED: ${{ vars.JIRA_KEY_REQUIRED }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}

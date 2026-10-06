@@ -5,10 +5,8 @@
 **Cost:** about three D2as_v5 VMs plus disks, roughly USD 200–250 a month if left running at pay-as-you-go prices. Check current pricing for your region before deploying. `az aks stop` between demos stops node billing, and the free tier has no control-plane charge.
 
 **After the cluster exists:**
-1. `az aks get-credentials -g logos-rg -n logos-aks`
-2. Install Strimzi (`helm install strimzi oci://quay.io/strimzi-helm/strimzi-kafka-operator -n kafka --create-namespace`)
-3. `kubectl apply -k deploy/k8s/kafka`
-4. Deploy the apps (plan step 4).
+1. Run `scripts/aks-bootstrap.sh`: Key Vault, identities, Strimzi, Envoy Gateway, cert-manager, External Secrets
+2. Set the GitHub variables it prints; `.github/workflows/deploy.yml` then deploys every merge (see `deploy/README.md`)
 
 Secrets: use Azure Key Vault + External Secrets Operator through workload identity. Nothing secret goes in git.
 

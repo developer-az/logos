@@ -1,0 +1,59 @@
+# C# services: build, unit tests, integration tests over real Kafka and PostgreSQL
+# (Testcontainers on the runner's Docker), and an image build for each service.
+name: services
+
+on:
+  pull_request:
+    paths: [services/**, .github/workflows/services.yml]
+  push:
+    branches: [main]
+    paths: [services/**, .github/workflows/services.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: services-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: services/global.json
+      - run: dotnet restore
+      - run: dotnet build --no-restore -c Release
+      - name: Test (unit and integration)
+        run: dotnet test --no-build -c Release --logger trx --results-directory TestResults
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: services-test-results
+          path: services/TestResults
+          if-no-files-found: ignore
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        service: [Order.Service, Inventory.Service]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build ${{ matrix.service }} image
+        uses: docker/build-push-action@v7
+        with:
+          context: services
+          build-args: SERVICE=${{ matrix.service }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

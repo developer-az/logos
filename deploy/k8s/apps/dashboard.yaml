@@ -1,0 +1,96 @@
+# Live dashboard (dashboard/): Node API that replays both topics into an in-memory read model and
+# serves the React UI, REST, an SSE stream and Prometheus metrics. Each replica builds its own full
+# read model (its own consumer group), so replicas are interchangeable behind the Service.
+# /readyz stays false until the startup replay has caught up, so no replica serves partial numbers.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  labels: { app.kubernetes.io/name: dashboard }
+spec:
+  selector: { app.kubernetes.io/name: dashboard }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  labels: { app.kubernetes.io/name: dashboard, app.kubernetes.io/component: web }
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: { app.kubernetes.io/name: dashboard }
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: dashboard, app.kubernetes.io/component: web }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000 # "node" in the node:22-alpine image
+        runAsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: { matchLabels: { app.kubernetes.io/name: dashboard } }
+      containers:
+        - name: dashboard
+          image: ghcr.io/developer-az/logos-dashboard
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: KAFKA_BROKERS, value: logos-kafka-kafka-bootstrap:9093 }
+            - { name: KAFKA_SSL, value: "true" }
+            # kafkajs uses Node's TLS stack; this adds the Strimzi cluster CA to its trust store.
+            - { name: NODE_EXTRA_CA_CERTS, value: /etc/kafka-ca/ca.crt }
+            - { name: KAFKA_SASL_MECHANISM, value: scram-sha-512 }
+            - { name: KAFKA_SASL_USERNAME, value: dashboard }
+            - name: KAFKA_SASL_PASSWORD
+              valueFrom: { secretKeyRef: { name: dashboard, key: password } }
+            - { name: KAFKA_CLIENT_ID, value: dashboard }
+            # Must match the prefixed group ACL on KafkaUser "dashboard".
+            - { name: KAFKA_GROUP_PREFIX, value: dashboard }
+            - { name: LOW_STOCK_THRESHOLD, value: "5" }
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 3
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: kafka-ca, mountPath: /etc/kafka-ca, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: logos-kafka-cluster-ca-cert
+            items: [{ key: ca.crt, path: ca.crt }]
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: dashboard }
