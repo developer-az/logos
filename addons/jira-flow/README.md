@@ -18,7 +18,7 @@ How it uses the stack:
 ```
 services/ingest-gateway/   TypeScript, Fastify, Confluent Kafka client, Jest
 services/metrics-service/  C# solution: Metrics.Core (pure domain), Metrics.Service (host + consumer), xUnit tests
-deploy/                    base/, overlays/local/, kafka/ (topics + users on the shared Strimzi cluster)
+deploy/                    base/, overlays/local/, kafka/ (topics + users on the shared Strimzi cluster, namespace logos)
 docker-compose.yml         Kafka 4.1 (KRaft) + both services for local dev
 scripts/smoke.sh           End-to-end check through real Kafka
 ARCHITECTURE.md            data flow, delivery guarantees, metric definitions
@@ -41,3 +41,15 @@ Requirements: .NET SDK 10, Node 22, Docker. For Kubernetes: kind, kubectl, and t
 - `npm test`: 26 passing, ~98% line coverage on tested modules
 - `scripts/smoke.sh` against compose: webhook → gateway → Kafka → C# → API returns lead 3d / cycle 2d; duplicate delivery ignored; state rebuilt correctly after a service restart
 - `kubectl kustomize` renders both `deploy/overlays/local` and `deploy/kafka/`. Not yet applied to a live cluster.
+
+## Deploying next to logos
+
+The add-on runs in namespace `logos` beside the platform from `deploy/k8s`, using the same `logos-kafka` cluster (Strimzi `kafka.strimzi.io/v1`):
+
+```bash
+kubectl apply -k addons/jira-flow/deploy/kafka                 # topics + KafkaUsers
+cp addons/jira-flow/deploy/overlays/local/webhook.env.example addons/jira-flow/deploy/overlays/local/webhook.env  # set secret
+kubectl apply -k addons/jira-flow/deploy/overlays/local
+```
+
+The platform namespace denies ingress by default, so exposing `/webhooks/jira` to Jira needs a route on the platform gateway plus a NetworkPolicy allowing that gateway to reach `ingest-gateway:8080`.

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: metrics-service
-  labels: { app.kubernetes.io/name: metrics-service, app.kubernetes.io/part-of: delivery }
+  labels: { app.kubernetes.io/name: metrics-service, app.kubernetes.io/part-of: logos-jira-flow }
 spec:
   # One replica while timelines are held in memory: with several, each pod would own a subset
   # of partitions and HTTP reads would see only that subset. Scale out once timelines are
@@ -13,7 +13,7 @@ spec:
     matchLabels: { app.kubernetes.io/name: metrics-service }
   template:
     metadata:
-      labels: { app.kubernetes.io/name: metrics-service, app.kubernetes.io/part-of: delivery }
+      labels: { app.kubernetes.io/name: metrics-service, app.kubernetes.io/part-of: logos-jira-flow }
     spec:
       securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       terminationGracePeriodSeconds: 30
@@ -27,7 +27,7 @@ spec:
           image: metrics-service
           ports: [{ name: http, containerPort: 8080 }]
           envFrom:
-            - configMapRef: { name: delivery-config }
+            - configMapRef: { name: jira-flow-config }
           env:
             - name: Kafka__SaslUsername
               value: metrics-service
