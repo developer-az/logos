@@ -1,0 +1,19 @@
+{
+  "webhookEvent": "jira:issue_updated",
+  "timestamp": 1790845200000,
+  "issue": {
+    "id": "10001",
+    "key": "ABC-1",
+    "fields": {
+      "project": { "key": "ABC" },
+      "status": { "name": "In Progress", "statusCategory": { "key": "indeterminate" } }
+    }
+  },
+  "changelog": {
+    "id": "20001",
+    "items": [
+      { "field": "assignee", "fromString": null, "toString": "Ada" },
+      { "field": "status", "fromString": "To Do", "toString": "In Progress" }
+    ]
+  }
+}

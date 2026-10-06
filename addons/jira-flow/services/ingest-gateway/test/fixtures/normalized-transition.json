@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "jira:10001:1790845200000:status",
+  "type": "issue.transitioned",
+  "occurredAt": "2026-10-01T09:00:00.000Z",
+  "issueKey": "ABC-1",
+  "projectKey": "ABC",
+  "toCategory": "in_progress",
+  "fromStatus": "To Do",
+  "toStatus": "In Progress"
+}

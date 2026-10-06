@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: delivery
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - ingest-gateway.yaml
+  - metrics-service.yaml
+images:
+  - name: ingest-gateway
+    newName: ghcr.io/OWNER/ingest-gateway
+    newTag: latest
+  - name: metrics-service
+    newName: ghcr.io/OWNER/metrics-service
+    newTag: latest

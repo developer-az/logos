@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: delivery-config
+data:
+  KAFKA_BROKERS: logos-kafka-kafka-bootstrap.kafka.svc:9093
+  KAFKA_TOPIC: jira.issue-events.v1
+  KAFKA_SSL_CA_PATH: /etc/kafka-ca/ca.crt
+  Kafka__BootstrapServers: logos-kafka-kafka-bootstrap.kafka.svc:9093
+  Kafka__IssueEventsTopic: jira.issue-events.v1
+  Kafka__DeadLetterTopic: jira.issue-events.dlq.v1
+  Kafka__MetricsTopic: delivery.issue-metrics.v1
+  Kafka__SslCaLocation: /etc/kafka-ca/ca.crt

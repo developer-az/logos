@@ -1,0 +1,42 @@
+# Least-privilege SCRAM users. Strimzi writes each password to a Secret of the same name in
+# namespace "kafka"; copy (or use a secret replicator) into namespace "delivery".
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: ingest-gateway
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: jira.issue-events.v1 }
+        operations: [Write, Describe]
+      - resource: { type: transactionalId, name: "*", patternType: literal }
+        operations: [Describe]
+        host: "*"
+      - resource: { type: cluster }
+        operations: [IdempotentWrite]
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: metrics-service
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: jira.issue-events.v1 }
+        operations: [Read, Describe]
+      - resource: { type: group, name: metrics-service }
+        operations: [Read]
+      - resource: { type: topic, name: jira.issue-events.dlq.v1 }
+        operations: [Write, Describe]
+      - resource: { type: topic, name: delivery.issue-metrics.v1 }
+        operations: [Write, Describe]
+      - resource: { type: cluster }
+        operations: [IdempotentWrite]

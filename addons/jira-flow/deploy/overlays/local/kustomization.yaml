@@ -1,0 +1,24 @@
+# Local kind cluster: images loaded with `kind load docker-image`.
+# Webhook secret comes from webhook.env (gitignored): cp webhook.env.example webhook.env
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: ingest-gateway
+    newName: ingest-gateway
+    newTag: dev
+  - name: metrics-service
+    newName: metrics-service
+    newTag: dev
+patches:
+  - target: { kind: Deployment, name: ingest-gateway }
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+secretGenerator:
+  - name: jira-webhook
+    envs: [webhook.env]
+generatorOptions:
+  disableNameSuffixHash: true

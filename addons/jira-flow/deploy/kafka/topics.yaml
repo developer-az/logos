@@ -1,0 +1,36 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: jira.issue-events.v1
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    # Source-of-truth event log; metrics are rebuilt from it.
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: jira.issue-events.dlq.v1
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  partitions: 1
+  replicas: 3
+  config:
+    retention.ms: 1209600000 # 14 days
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: delivery.issue-metrics.v1
+  namespace: kafka
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    cleanup.policy: compact

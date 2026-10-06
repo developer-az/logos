@@ -1,0 +1,6 @@
+# Topics and users for the Jira flow add-on, on the shared Strimzi cluster in deploy/k8s/kafka.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - topics.yaml
+  - users.yaml

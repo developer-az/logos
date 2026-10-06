@@ -1,0 +1,28 @@
+{
+  "name": "ingest-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Receives Jira webhooks, verifies them, normalizes to IssueEvent v1 and publishes to Kafka.",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@confluentinc/kafka-javascript": "^1.10.1",
+    "fastify": "^5.12.5"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.20.5",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.14",
+    "typescript": "^5.9.3"
+  }
+}
