@@ -2,14 +2,14 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ingest-gateway
-  labels: { app.kubernetes.io/name: ingest-gateway, app.kubernetes.io/part-of: delivery }
+  labels: { app.kubernetes.io/name: ingest-gateway, app.kubernetes.io/part-of: logos-jira-flow }
 spec:
   replicas: 2
   selector:
     matchLabels: { app.kubernetes.io/name: ingest-gateway }
   template:
     metadata:
-      labels: { app.kubernetes.io/name: ingest-gateway, app.kubernetes.io/part-of: delivery }
+      labels: { app.kubernetes.io/name: ingest-gateway, app.kubernetes.io/part-of: logos-jira-flow }
     spec:
       securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       volumes:
@@ -20,7 +20,7 @@ spec:
           image: ingest-gateway
           ports: [{ name: http, containerPort: 8080 }]
           envFrom:
-            - configMapRef: { name: delivery-config }
+            - configMapRef: { name: jira-flow-config }
           env:
             - name: JIRA_WEBHOOK_SECRET
               valueFrom: { secretKeyRef: { name: jira-webhook, key: secret } }
