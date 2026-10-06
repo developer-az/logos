@@ -12,15 +12,14 @@ public sealed class KafkaMessageProducer : IMessageProducer, IDisposable
     public KafkaMessageProducer(IOptions<KafkaOptions> options)
     {
         var opts = options.Value;
-        _producer = new Lazy<IProducer<string, string>>(() => new ProducerBuilder<string, string>(new ProducerConfig
+        _producer = new Lazy<IProducer<string, string>>(() => new ProducerBuilder<string, string>(opts.Apply(new ProducerConfig
         {
-            BootstrapServers = opts.BootstrapServers,
             ClientId = opts.ClientId,
             EnableIdempotence = true,
             Acks = Acks.All,
             LingerMs = 5,
             MessageTimeoutMs = 30_000,
-        }).Build());
+        })).Build());
     }
 
     public async Task ProduceAsync(OutgoingMessage message, CancellationToken ct)

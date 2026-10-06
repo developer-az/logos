@@ -1,6 +1,6 @@
 # Order & Inventory event services
 
-Two .NET 8 services that run an order saga over Kafka:
+Two .NET 10 services that run an order saga over Kafka:
 
 - **Order service** accepts orders over HTTP and confirms or rejects them based on inventory's answer.
 - **Inventory service** reserves stock all-or-nothing, releases it on cancellation, and publishes live stock levels.
@@ -78,11 +78,28 @@ Known simplifications: the client supplies unit prices (a catalog service would 
 | `ConnectionStrings:Orders` / `ConnectionStrings:Inventory` | localhost PostgreSQL, no password | Supply the password outside source control: environment variables (`ConnectionStrings__Orders`), `dotnet user-secrets`, or a Kubernetes Secret |
 | `Kafka:BootstrapServers` | `localhost:9092` | |
 | `Kafka:GroupId` | `order-service` / `inventory-service` | |
-| `Kafka:TopicPartitions`, `Kafka:ReplicationFactor` | 3, 1 | used when provisioning topics |
+| `Kafka:SecurityProtocol` | `Plaintext` | `SaslSsl` in Kubernetes (Strimzi TLS listener) |
+| `Kafka:SaslMechanism` | `ScramSha512` | |
+| `Kafka:SaslUsername`, `Kafka:SaslPassword` | none | the service's KafkaUser and its Secret; never commit the password |
+| `Kafka:SslCaLocation` | none | PEM of the cluster CA (Strimzi `<cluster>-cluster-ca-cert`, key `ca.crt`) |
+| `Kafka:ProvisionTopics` | true | set `false` where Strimzi KafkaTopic resources own the topics |
+| `Kafka:TopicPartitions`, `Kafka:ReplicationFactor` | 3, 1 | used only when provisioning topics |
 | `Kafka:MaxHandlerAttempts`, `Kafka:InitialRetryDelay` | 5, 200 ms | |
 | `Kafka:OutboxPollInterval`, `Kafka:OutboxBatchSize` | 250 ms, 100 | |
 | `Database:MigrateOnStartup` | true | applies EF Core migrations |
 | `Inventory:SeedDemoData` | false (true in compose) | |
+
+In-cluster example (environment variables on the Deployment, password from a Secret):
+
+```yaml
+- { name: Kafka__BootstrapServers, value: logos-kafka-kafka-bootstrap.kafka:9093 }
+- { name: Kafka__SecurityProtocol, value: SaslSsl }
+- { name: Kafka__SaslUsername, value: order-service }
+- name: Kafka__SaslPassword
+  valueFrom: { secretKeyRef: { name: order-service, key: password } }
+- { name: Kafka__SslCaLocation, value: /etc/kafka-ca/ca.crt }
+- { name: Kafka__ProvisionTopics, value: "false" }
+```
 
 Health probes for Kubernetes: `/health/live` and `/health/ready` (checks the database).
 

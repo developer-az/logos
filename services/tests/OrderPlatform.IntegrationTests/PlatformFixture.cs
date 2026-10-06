@@ -29,14 +29,13 @@ public sealed class DockerFactAttribute : FactAttribute
 public sealed class PlatformFixture : IAsyncLifetime
 {
     private readonly int _kafkaPort = FreeTcpPort();
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
     private readonly IContainer _kafka;
     private readonly string _runId = Guid.NewGuid().ToString("N")[..8];
 
     public PlatformFixture()
     {
-        _kafka = new ContainerBuilder()
-            .WithImage("apache/kafka:3.8.0")
+        _kafka = new ContainerBuilder("apache/kafka:4.1.0")
             .WithPortBinding(_kafkaPort, 9092)
             .WithEnvironment(new Dictionary<string, string>
             {

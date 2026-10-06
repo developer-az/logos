@@ -26,7 +26,7 @@ public sealed class KafkaTopicProvisioner(IOptions<KafkaOptions> options, ILogge
             })
             .ToList();
 
-        using var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = opts.BootstrapServers }).Build();
+        using var admin = new AdminClientBuilder(opts.Apply(new AdminClientConfig())).Build();
 
         // The broker may still be starting (docker-compose, Kubernetes), so retry for a while.
         for (var attempt = 1; ; attempt++)

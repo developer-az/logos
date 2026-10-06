@@ -29,16 +29,15 @@ public sealed class KafkaConsumerWorker<THandler>(
 
     private async Task ConsumeLoopAsync(KafkaOptions opts, CancellationToken ct)
     {
-        using var consumer = new ConsumerBuilder<string, string>(new ConsumerConfig
+        using var consumer = new ConsumerBuilder<string, string>(opts.Apply(new ConsumerConfig
         {
-            BootstrapServers = opts.BootstrapServers,
             ClientId = opts.ClientId,
             GroupId = opts.GroupId,
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoCommit = true,
             EnableAutoOffsetStore = false,
             PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
-        })
+        }))
             .SetErrorHandler((_, e) => logger.LogWarning("Kafka consumer error: {Reason}", e.Reason))
             .Build();
 

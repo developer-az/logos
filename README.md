@@ -4,5 +4,5 @@ A real-time order and inventory event platform: C# services talking over Kafka, 
 
 | Path | What |
 |---|---|
-| [services/](services/README.md) | .NET 8 order and inventory services, Kafka saga, tests |
+| [services/](services/README.md) | .NET 10 order and inventory services, Kafka saga, tests |
 | [services/docs/events.md](services/docs/events.md) | Event contracts |
