@@ -8,7 +8,16 @@ import { ThroughputChart } from './components/ThroughputChart';
 import { useLiveSnapshot, type EventSourceFactory } from './hooks/useLiveSnapshot';
 import { formatAgo, formatCount } from './lib/format';
 
-export function App({ streamUrl, createEventSource }: { streamUrl?: string; createEventSource?: EventSourceFactory }) {
+export function App({
+  streamUrl,
+  createEventSource,
+  demo = false,
+}: {
+  streamUrl?: string;
+  createEventSource?: EventSourceFactory;
+  /** Public demo: events are simulated in the browser rather than read from Kafka. */
+  demo?: boolean;
+}) {
   const { snapshot, connection, receivedAt } = useLiveSnapshot(streamUrl, createEventSource);
   const now = useNow(5_000);
 
@@ -17,13 +26,24 @@ export function App({ streamUrl, createEventSource }: { streamUrl?: string; crea
       <header className="top">
         <div>
           <h1>Orderflow Live</h1>
-          <p className="sub">Orders and inventory, straight from Kafka</p>
+          <p className="sub">
+            {demo ? 'Orders and inventory, simulated live in your browser' : 'Orders and inventory, straight from Kafka'}
+          </p>
         </div>
         <div className="top-right">
           <ConnectionBadge connection={connection} caughtUp={snapshot?.caughtUp ?? null} />
           {receivedAt && <span className="sub">Updated {formatAgo(receivedAt.toISOString(), now)}</span>}
         </div>
       </header>
+
+      {demo && (
+        <p className="notice demo-notice">
+          Public demo. The events are generated in your browser by the project's simulator and run
+          through the same contract validation and read model as production. The real deployment
+          reads them from Kafka, fed by the C# order and inventory services on Kubernetes.{' '}
+          <a href="https://github.com/developer-az/logos">Source and architecture</a>
+        </p>
+      )}
 
       {!snapshot ? (
         <p className="empty" role="status">
@@ -50,7 +70,7 @@ export function App({ streamUrl, createEventSource }: { streamUrl?: string; crea
           <footer className="consumer" aria-label="Consumer health">
             {formatCount(snapshot.consumer.processed)} events applied ·{' '}
             {formatCount(snapshot.consumer.duplicates)} duplicates ignored ·{' '}
-            {formatCount(snapshot.consumer.invalid)} invalid dead-lettered ·{' '}
+            {formatCount(snapshot.consumer.invalid)} invalid {demo ? 'rejected' : 'dead-lettered'} ·{' '}
             {formatCount(snapshot.consumer.unsupported)} unknown types skipped
           </footer>
         </main>
