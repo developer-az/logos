@@ -23,3 +23,7 @@ path; the demo shows simulated events only.
 Importing the repo on Vercel needs no settings: [vercel.json](vercel.json) builds
 `dashboard/` with `npm run build:demo` and serves it as a static site. Any static host works the
 same way (`cd dashboard && npm ci && npm run build:demo`, then publish `packages/web/dist`).
+
+To host the real stack (Kafka, the C# services, Postgres and the dashboard) publicly without
+Kubernetes, [deploy/vm](deploy/vm/README.md) runs it all on one small VM with HTTPS, using one
+setup script. It fits in Oracle Cloud's free tier.

@@ -45,7 +45,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
-        run: shellcheck scripts/*.sh
+        run: shellcheck scripts/*.sh deploy/vm/*.sh
+      - name: VM compose file
+        run: |
+          printf 'POSTGRES_PASSWORD=lint-only\nSITE_ADDRESS=example.com\n' > deploy/vm/.env
+          docker compose -f deploy/vm/compose.yaml config --quiet
+      - name: VM load generator matches the Kubernetes one
+        run: |
+          awk '/run.sh: \|/{f=1;next} /^---/{f=0} f' deploy/k8s/apps/load-generator.yaml | sed 's/^    //' \
+            | diff - <(sed 2d deploy/vm/load-generator.sh)
       - name: actionlint
         run: |
           curl -sSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" | tar -xz actionlint
