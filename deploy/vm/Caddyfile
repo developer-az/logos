@@ -1,0 +1,19 @@
+# Public entry point: HTTPS (Let's Encrypt, renewed automatically) in front of the dashboard.
+# SITE_ADDRESS comes from .env, e.g. demo.example.com or <public-ip>.sslip.io.
+{$SITE_ADDRESS} {
+	# Compress the app, but not the live stream: gzip would buffer server-sent events.
+	@compressible not path /api/stream
+	encode @compressible zstd gzip
+
+	# Prometheus metrics are for the operator, not the internet.
+	respond /metrics 404
+
+	reverse_proxy dashboard:8080
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

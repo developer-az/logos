@@ -14,6 +14,9 @@ deploy/k8s/
   platform/aks/     cluster-scoped GatewayClass and Let's Encrypt ClusterIssuer (applied once)
 ```
 
+No Kubernetes needed for a public demo: [vm/](vm/README.md) runs the same stack on one VM with
+Docker Compose and HTTPS.
+
 ## Run it locally
 
 Needs Docker, kind, kubectl, helm, jq and openssl.

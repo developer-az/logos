@@ -1,0 +1,141 @@
+# The whole platform on one small Linux VM, public over HTTPS: Kafka (KRaft), PostgreSQL, the two
+# .NET services, the dashboard, the load generator, and Caddy in front with a Let's Encrypt
+# certificate. Built from source on the VM, so it runs on x86 and Arm hosts alike.
+#
+#   deploy/vm/setup.sh          # first run on a fresh VM (installs Docker, writes .env, starts)
+#   docker compose up -d --build   # after a git pull, from deploy/vm
+#
+# Only Caddy publishes ports (80, 443). Kafka, Postgres and the service APIs stay on the private
+# compose network; the public site is the read-only dashboard. Memory limits keep the stack
+# inside a 4 GB VM.
+name: logos
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  kafka:
+    <<: *restart
+    image: apache/kafka:4.3.1
+    mem_limit: 1g
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      # The dashboard replays the topics on start; a week of demo traffic keeps that quick.
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  postgres:
+    <<: *restart
+    image: postgres:16-alpine
+    mem_limit: 512m
+    env_file: .env   # POSTGRES_PASSWORD, written by setup.sh
+    environment:
+      POSTGRES_USER: postgres
+    volumes:
+      - ../../services/deploy/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  order-service:
+    <<: *restart
+    build: { context: ../../services, args: { SERVICE: Order.Service } }
+    image: logos-order-service:local
+    pull_policy: build
+    mem_limit: 384m
+    environment:
+      ConnectionStrings__Orders: Host=postgres;Database=orders;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Kafka__BootstrapServers: kafka:9092
+    depends_on:
+      kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
+  inventory-service:
+    <<: *restart
+    build: { context: ../../services, args: { SERVICE: Inventory.Service } }
+    image: logos-inventory-service:local
+    pull_policy: build
+    mem_limit: 384m
+    environment:
+      ConnectionStrings__Inventory: Host=postgres;Database=inventory;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Kafka__BootstrapServers: kafka:9092
+    depends_on:
+      kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
+  dashboard:
+    <<: *restart
+    build: { context: ../../dashboard }
+    image: logos-dashboard:local
+    pull_policy: build
+    mem_limit: 384m
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      LOW_STOCK_THRESHOLD: "5"
+    depends_on:
+      kafka: { condition: service_healthy }
+      # The services provision the topics and their .dlt topics on startup.
+      order-service: { condition: service_started }
+      inventory-service: { condition: service_started }
+
+  # Same script as deploy/k8s/apps/load-generator.yaml: real orders through the order API, so
+  # every event on the dashboard comes out of the C# saga. `docker compose stop load-generator`
+  # pauses traffic.
+  load-generator:
+    <<: *restart
+    image: curlimages/curl:8.16.0
+    mem_limit: 64m
+    command: ["/bin/sh", "/scripts/run.sh"]
+    environment:
+      ORDER_API: http://order-service:8080
+      INVENTORY_API: http://inventory-service:8080
+      INTERVAL_SECONDS: ${LOAD_INTERVAL_SECONDS:-2}
+      CANCEL_PERCENT: "10"
+    volumes:
+      - ./load-generator.sh:/scripts/run.sh:ro
+    depends_on:
+      order-service: { condition: service_started }
+      inventory-service: { condition: service_started }
+
+  caddy:
+    <<: *restart
+    image: caddy:2.10-alpine
+    mem_limit: 128m
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in deploy/vm/.env (setup.sh does)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      dashboard: { condition: service_started }
+
+volumes:
+  kafka-data:
+  pgdata:
+  caddy-data:
+  caddy-config:

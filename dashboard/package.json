@@ -10,7 +10,6 @@
   ],
   "scripts": {
     "build": "npm run build -w @orderflow/contracts && npm run build -w @orderflow/api && npm run build -w @orderflow/web",
-    "build:demo": "npm run build -w @orderflow/contracts && VITE_DEMO=true npm run build -w @orderflow/web",
     "typecheck": "tsc -b packages/contracts packages/api && tsc -p tsconfig.test.json && tsc -p packages/web --noEmit",
     "test": "jest",
     "test:unit": "jest --selectProjects contracts api web",
