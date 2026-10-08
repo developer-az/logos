@@ -31,6 +31,19 @@ npm run dev:web                                 # UI on :5173, proxies /api
 KAFKA_BROKERS=localhost:9094 npm run simulate -- --rate 5   # optional fake traffic
 ```
 
+### Public demo (no backend)
+
+```sh
+npm run build:demo        # static site in packages/web/dist
+npx vite preview packages/web   # or deploy that folder anywhere (vercel.json does it on Vercel)
+```
+
+With `VITE_DEMO=true` the page doesn't open `/api/stream`. It runs `OrderFlowSimulator`, sends
+each event through `parseEvent` (the consumer's contract validation, including ~2% redeliveries
+and the odd malformed message) and folds it into the API's `Projection`, all in the browser
+(`packages/web/src/demo/demo-stream.ts`). An hour of history is generated on load so the charts
+start full. Only the transport differs from production: no Kafka, no SSE, no dead-letter topic.
+
 ## Test
 
 ```sh

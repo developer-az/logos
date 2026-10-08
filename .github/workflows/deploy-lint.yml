@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
-        run: shellcheck scripts/*.sh deploy/vm/*.sh
+        run: shellcheck scripts/*.sh deploy/vm/*.sh deploy/railway/*.sh
       - name: VM compose file
         run: |
           printf 'POSTGRES_PASSWORD=lint-only\nSITE_ADDRESS=example.com\n' > deploy/vm/.env
