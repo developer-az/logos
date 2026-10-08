@@ -14,5 +14,6 @@ A real-time order and inventory event platform: C# services talking over Kafka, 
 
 [deploy/vm](deploy/vm/README.md) hosts the whole platform (Kafka, the C# services, PostgreSQL,
 the dashboard and a load generator placing real orders) on one small Linux VM with HTTPS, set up
-by one script. It fits in Oracle Cloud's free tier. [deploy/](deploy/README.md) is the
+by one script. It fits in Oracle Cloud's free tier. [deploy/railway](deploy/railway/README.md) runs the same
+stack on Railway with no server to manage (paid, roughly $10 to $15 a month). [deploy/](deploy/README.md) is the
 Kubernetes and AKS path.
