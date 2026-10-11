@@ -6,6 +6,12 @@
 export const ORDER_STATUSES = ['placed', 'confirmed', 'rejected', 'cancelled'] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
+/** One step of an order's saga as the dashboard saw it: which event, and when it happened. */
+export interface TimelineEntry {
+  eventType: string;
+  occurredAt: string;
+}
+
 export interface OrderView {
   orderId: string;
   customerId: string | null;
@@ -16,6 +22,11 @@ export interface OrderView {
   updatedAt: string;
   /** Last rejection/cancellation reason, when there is one. */
   reason: string | null;
+  /**
+   * The order's events across both topics (order and inventory), oldest first. Kept for recent
+   * orders only; absent for older ones and from APIs that predate it.
+   */
+  timeline?: TimelineEntry[];
 }
 
 export interface InventoryView {

@@ -51,8 +51,9 @@ export class SnapshotStream {
   }
 
   /** Takes over a raw response, sends the current snapshot, and keeps it for future pushes. */
-  attach(res: ServerResponse): void {
+  attach(res: ServerResponse, headers: Record<string, string> = {}): void {
     res.writeHead(200, {
+      ...headers,
       'content-type': 'text/event-stream; charset=utf-8',
       'cache-control': 'no-cache, no-transform',
       connection: 'keep-alive',

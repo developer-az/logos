@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConnectionBadge } from '../src/components/ConnectionBadge';
+import { EventFeed } from '../src/components/EventFeed';
+import { PipelineFlow } from '../src/components/PipelineFlow';
 import { KpiTiles } from '../src/components/KpiTiles';
 import { LowStockTable } from '../src/components/LowStockTable';
 import { RecentOrders } from '../src/components/RecentOrders';
@@ -140,5 +142,87 @@ describe('ThroughputChart', () => {
     render(<ThroughputChart points={throughput([[0, 0], [3, 4]])} />);
     const table = screen.getByRole('table', { hidden: true });
     expect(within(table).getAllByRole('row', { hidden: true })).toHaveLength(2);
+  });
+});
+
+describe('PipelineFlow', () => {
+  it('shows each topic with its rate over the last complete minute', () => {
+    render(<PipelineFlow throughput={throughput([[30, 41], [5, 6]])} mode="live" />);
+    expect(screen.getByText('orders.events.v1').parentElement).toHaveTextContent('30/min');
+    expect(screen.getByText('inventory.events.v1').parentElement).toHaveTextContent('41/min');
+    expect(screen.getByText('C# · .NET 10 · PostgreSQL + outbox')).toBeInTheDocument();
+  });
+
+  it('says so when the services are simulated', () => {
+    render(<PipelineFlow throughput={[]} mode="simulated" />);
+    expect(screen.getAllByText('simulated')).toHaveLength(3);
+    expect(screen.getByText('orders.events.v1').parentElement).toHaveTextContent('0/min');
+    expect(screen.getByText(/Simulated in your browser/)).toBeInTheDocument();
+  });
+});
+
+describe('EventFeed', () => {
+  it('lists the newest events with readable names and their Kafka keys', () => {
+    render(
+      <EventFeed
+        limit={2}
+        events={[
+          { eventId: 'e3', eventType: 'inventory.stock-level-changed', occurredAt: '2026-10-06T10:00:03Z', key: 'SKU-0003' },
+          { eventId: 'e2', eventType: 'order.confirmed', occurredAt: '2026-10-06T10:00:02Z', key: '0b5a3c1e-7f00-4d1a-9a55-2a7bdf1f0c11' },
+          { eventId: 'e1', eventType: 'order.placed', occurredAt: '2026-10-06T10:00:01Z', key: 'x' },
+        ]}
+      />,
+    );
+    const items = screen.getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent('Stock level changed');
+    expect(items[0]).toHaveTextContent('SKU-0003');
+    expect(items[1]).toHaveTextContent('Order confirmed');
+    expect(items[1]).toHaveTextContent('0b5a3c1e');
+  });
+
+  it('shows an empty state', () => {
+    render(<EventFeed events={[]} />);
+    expect(screen.getByText('No events yet.')).toBeInTheDocument();
+  });
+});
+
+describe('saga trace', () => {
+  const traced = () => {
+    const order = snapshot().orders.recent[0]!;
+    return {
+      ...order,
+      timeline: [
+        { eventType: 'order.placed', occurredAt: '2026-10-06T10:04:58.000Z' },
+        { eventType: 'inventory.stock-reservation-failed', occurredAt: '2026-10-06T10:04:58.042Z' },
+        { eventType: 'order.rejected', occurredAt: '2026-10-06T10:04:58.087Z' },
+      ],
+    };
+  };
+
+  it('expands an order into its steps with offsets and topics', async () => {
+    const user = userEvent.setup();
+    render(<RecentOrders orders={[traced()]} now={new Date('2026-10-06T10:05:00Z')} currency="USD" />);
+    const toggle = screen.getByRole('button', { name: /0b5a3c1e/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('Saga trace')).toBeNull();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const steps = within(screen.getByLabelText('Saga trace')).getAllByRole('listitem');
+    expect(steps.map((s) => s.textContent)).toEqual([
+      'Order placedorders.events.v1 · start',
+      'Stock unavailableinventory.events.v1 · +42 ms',
+      'Order rejectedorders.events.v1 · +87 ms',
+    ]);
+
+    await user.click(toggle);
+    expect(screen.queryByLabelText('Saga trace')).toBeNull();
+  });
+
+  it('shows a plain id for orders without a timeline', () => {
+    render(<RecentOrders orders={snapshot().orders.recent} now={new Date('2026-10-06T10:05:00Z')} currency="USD" />);
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByText(/trace its saga/)).toBeNull();
   });
 });
