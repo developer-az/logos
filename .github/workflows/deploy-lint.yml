@@ -45,11 +45,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
-        run: shellcheck scripts/*.sh deploy/vm/*.sh deploy/railway/*.sh
+        run: shellcheck scripts/*.sh deploy/vm/*.sh deploy/free/*.sh deploy/railway/*.sh
       - name: VM compose file
         run: |
           printf 'POSTGRES_PASSWORD=lint-only\nSITE_ADDRESS=example.com\n' > deploy/vm/.env
           docker compose -f deploy/vm/compose.yaml config --quiet
+      - name: Free compose file
+        run: |
+          printf 'POSTGRES_PASSWORD=lint-only\nSITE_ADDRESS=example.com\nKAFKA_BOOTSTRAP=kafka.example.com:12345\n' > deploy/free/.env
+          docker compose -f deploy/free/compose.yaml config --quiet
       - name: VM load generator matches the Kubernetes one
         run: |
           awk '/run.sh: \|/{f=1;next} /^---/{f=0} f' deploy/k8s/apps/load-generator.yaml | sed 's/^    //' \

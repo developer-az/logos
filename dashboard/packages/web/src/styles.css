@@ -125,3 +125,60 @@ summary { cursor: pointer; }
   .hide-narrow { display: none; }
   td, th { padding: 6px 4px; }
 }
+
+/* Live/simulated notices */
+.live-notice { border-left-color: var(--good); margin: 0 0 16px; }
+.live-notice a { color: var(--series-1); }
+.card-hint { color: var(--text-muted); font-size: 0.8rem; margin: -4px 0 8px; }
+
+/* Architecture with live rates */
+.flow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; align-items: center; }
+.node { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface-0); text-align: center; }
+.node-name { font-weight: 600; font-size: 0.9rem; }
+.node-detail { color: var(--text-muted); font-size: 0.75rem; margin-top: 2px; }
+.topics { display: grid; gap: 14px; }
+.topic { display: grid; gap: 2px; text-align: center; }
+.topic-line { position: relative; height: 2px; background: var(--border); border-radius: 2px; overflow: visible; }
+.topic-arrow { position: absolute; top: -0.72em; font-size: 0.9rem; color: var(--text-muted); line-height: 1; }
+.topic-right .topic-arrow { right: -2px; }
+.topic-left .topic-arrow { left: -2px; }
+.topic-active .topic-line { background-image: linear-gradient(90deg, transparent 0 40%, var(--series-1) 40% 60%, transparent 60% 100%); background-size: 40px 2px; background-color: var(--grid); }
+.topic-active.topic-right .topic-line { animation: flow-right 1.2s linear infinite; }
+.topic-active.topic-left .topic-line { background-image: linear-gradient(90deg, transparent 0 40%, var(--series-2) 40% 60%, transparent 60% 100%); animation: flow-left 1.2s linear infinite; }
+.topic-label { display: flex; justify-content: center; gap: 8px; font-size: 0.8rem; flex-wrap: wrap; margin-top: 4px; }
+.topic-label strong { font-variant-numeric: tabular-nums; }
+.topic-what { color: var(--text-muted); font-size: 0.72rem; }
+.flow-down { text-align: center; color: var(--text-muted); font-size: 0.75rem; margin: 10px 0 6px; }
+.flow-sink { display: flex; justify-content: center; }
+.flow-sink .node { min-width: min(100%, 280px); }
+.flow-note { color: var(--text-muted); font-size: 0.78rem; margin: 10px 0 0; text-align: center; }
+@keyframes flow-right { from { background-position: 0 0; } to { background-position: 40px 0; } }
+@keyframes flow-left { from { background-position: 40px 0; } to { background-position: 0 0; } }
+@media (max-width: 620px) {
+  .flow { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .topic-line { animation: none !important; } }
+
+/* Event stream */
+.feed { list-style: none; margin: 0; padding: 0; columns: 340px; column-gap: 24px; font-size: 0.82rem; }
+.feed li { break-inside: avoid; display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--grid); }
+.feed-time, .feed-key { color: var(--text-muted); font-size: 0.78rem; }
+.chip { justify-self: start; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; border: 1px solid var(--border); border-left-width: 3px; white-space: nowrap; }
+.chip-orders { border-left-color: var(--series-1); }
+.chip-inventory { border-left-color: var(--series-2); }
+
+/* Saga trace */
+.trace-toggle { font: inherit; color: var(--series-1); background: none; border: 0; padding: 0; cursor: pointer; white-space: nowrap; }
+.trace-toggle:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; border-radius: 4px; }
+.row-open td { border-bottom-color: transparent; }
+.trace-row td { background: var(--surface-0); }
+.trace { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 22px; }
+.trace-step { position: relative; display: grid; padding-left: 10px; border-left: 3px solid var(--series-1); }
+.trace-inventory { border-left-color: var(--series-2); }
+.trace-step:not(:last-child)::after { content: '→'; position: absolute; right: -16px; top: 0.4em; color: var(--text-muted); }
+.trace-name { font-weight: 500; }
+.trace-meta { color: var(--text-muted); font-size: 0.75rem; }
+@media (max-width: 520px) {
+  .trace { flex-direction: column; gap: 8px; }
+  .trace-step::after { display: none; }
+}

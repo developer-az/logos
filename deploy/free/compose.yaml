@@ -1,0 +1,126 @@
+# The real platform for $0: this file runs on one Oracle Cloud Always Free micro VM (1 GB RAM),
+# Kafka is Aiven's free managed Kafka, and the public page is the Vercel build pointed here.
+#
+#   deploy/free/setup.sh <aiven-host:port>   # first run (installs Docker, writes .env, starts)
+#   docker compose pull && docker compose up -d   # update to the latest images from main
+#
+# Nothing is built on the VM: images come prebuilt from GHCR (images.yml publishes them on every
+# merge to main), because compiling .NET on 1/8 of a CPU and 1 GB would take far too long.
+# Memory limits add up to ~850 MB; setup.sh adds swap for headroom.
+name: logos-free
+
+x-restart: &restart
+  restart: unless-stopped
+
+# Aiven authenticates clients by certificate on its default listener. Download ca.pem,
+# service.cert and service.key from the Aiven console into deploy/free/kafka/.
+x-kafka-dotnet: &kafka-dotnet
+  Kafka__BootstrapServers: ${KAFKA_BOOTSTRAP:?set KAFKA_BOOTSTRAP in deploy/free/.env (setup.sh does)}
+  Kafka__SecurityProtocol: Ssl
+  Kafka__SslCaLocation: /kafka/ca.pem
+  Kafka__SslCertificateLocation: /kafka/service.cert
+  Kafka__SslKeyLocation: /kafka/service.key
+  # The four topics are created in the Aiven console (the free tier allows 5, 2 partitions each).
+  Kafka__ProvisionTopics: "false"
+  # Workstation GC and a conservative heap keep each service near 100 MB.
+  DOTNET_gcServer: "0"
+  DOTNET_GCConserveMemory: "7"
+
+services:
+  postgres:
+    <<: *restart
+    image: postgres:16-alpine
+    mem_limit: 160m
+    env_file: .env   # POSTGRES_PASSWORD, written by setup.sh
+    environment:
+      POSTGRES_USER: postgres
+    command: ["postgres", "-c", "shared_buffers=32MB", "-c", "max_connections=40", "-c", "work_mem=2MB"]
+    volumes:
+      - ../../services/deploy/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  order-service:
+    <<: *restart
+    image: ghcr.io/developer-az/logos-order-service:${IMAGE_TAG:-latest}
+    mem_limit: 200m
+    environment:
+      <<: *kafka-dotnet
+      ConnectionStrings__Orders: Host=postgres;Database=orders;Username=postgres;Password=${POSTGRES_PASSWORD}
+    volumes:
+      - ./kafka:/kafka:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  inventory-service:
+    <<: *restart
+    image: ghcr.io/developer-az/logos-inventory-service:${IMAGE_TAG:-latest}
+    mem_limit: 200m
+    environment:
+      <<: *kafka-dotnet
+      ConnectionStrings__Inventory: Host=postgres;Database=inventory;Username=postgres;Password=${POSTGRES_PASSWORD}
+    volumes:
+      - ./kafka:/kafka:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  # Serves the live stream (and the full dashboard) at https://SITE_ADDRESS; the Vercel build
+  # reads the stream cross-origin, which CORS_ORIGINS allows.
+  dashboard:
+    <<: *restart
+    image: ghcr.io/developer-az/logos-dashboard:${IMAGE_TAG:-latest}
+    mem_limit: 220m
+    environment:
+      KAFKA_BROKERS: ${KAFKA_BOOTSTRAP}
+      KAFKA_SSL_CA_FILE: /kafka/ca.pem
+      KAFKA_SSL_CERT_FILE: /kafka/service.cert
+      KAFKA_SSL_KEY_FILE: /kafka/service.key
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      LOW_STOCK_THRESHOLD: "5"
+      NODE_OPTIONS: --max-old-space-size=160
+    volumes:
+      - ./kafka:/kafka:ro
+    depends_on:
+      order-service: { condition: service_started }
+      inventory-service: { condition: service_started }
+
+  # Real orders through the order API, so every event comes out of the C# saga. Its traffic is
+  # also what keeps Aiven's free Kafka from powering off (it does after 24 h with no activity).
+  load-generator:
+    <<: *restart
+    image: curlimages/curl:8.16.0
+    mem_limit: 32m
+    command: ["/bin/sh", "/scripts/run.sh"]
+    environment:
+      ORDER_API: http://order-service:8080
+      INVENTORY_API: http://inventory-service:8080
+      INTERVAL_SECONDS: ${LOAD_INTERVAL_SECONDS:-5}
+      CANCEL_PERCENT: "10"
+    volumes:
+      - ../vm/load-generator.sh:/scripts/run.sh:ro
+    depends_on:
+      order-service: { condition: service_started }
+      inventory-service: { condition: service_started }
+
+  caddy:
+    <<: *restart
+    image: caddy:2.10-alpine
+    mem_limit: 64m
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in deploy/free/.env (setup.sh does)}
+    volumes:
+      - ../vm/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      dashboard: { condition: service_started }
+
+volumes:
+  pgdata:
+  caddy-data:
+  caddy-config:

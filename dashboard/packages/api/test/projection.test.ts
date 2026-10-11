@@ -21,6 +21,10 @@ describe('order saga', () => {
       placedAt: at(0),
       updatedAt: at(150),
       reason: null,
+      timeline: [
+        { eventType: 'order.placed', occurredAt: at(0) },
+        { eventType: 'order.confirmed', occurredAt: at(150) },
+      ],
     });
     const s = p.snapshot(true);
     expect(s.orders.byStatus).toEqual({ placed: 0, confirmed: 1, rejected: 0, cancelled: 0 });
@@ -309,6 +313,55 @@ describe('snapshot', () => {
     p.recordUnsupported();
     expect(p.version).toBe(v0 + 3);
     expect(p.snapshot(false)).toMatchObject({ caughtUp: false, currency: 'EUR', consumer: { invalid: 1, unsupported: 1 } });
+  });
+});
+
+describe('saga timeline', () => {
+  const reserved = (orderId: string, ms: number) =>
+    ev('inventory.stock-reserved', { orderId, lines: [{ sku: 'SKU-1', quantity: 1 }] }, { ms });
+
+  it('records every step of an order across both topics, in event-time order', () => {
+    const p = make();
+    p.apply(placed('A', 0));
+    // The order topic is ahead of the inventory topic: confirmed arrives before reserved.
+    p.apply(confirmed('A', 120));
+    p.apply(reserved('A', 80));
+    p.apply(level('SKU-1', 9, 1, 90));
+    expect(p.snapshot(true).orders.recent[0]!.timeline).toEqual([
+      { eventType: 'order.placed', occurredAt: at(0) },
+      { eventType: 'inventory.stock-reserved', occurredAt: at(80) },
+      { eventType: 'order.confirmed', occurredAt: at(120) },
+    ]);
+    expect(p.getOrder('A')!.timeline).toHaveLength(3);
+  });
+
+  it('does not record a redelivered event twice', () => {
+    const p = make();
+    const e = placed('A', 0);
+    p.apply(e);
+    p.apply(e);
+    expect(p.getOrder('A')!.timeline).toHaveLength(1);
+  });
+
+  it('keeps timelines for the most recent orders only', () => {
+    const p = make({ timelineOrders: 2 });
+    p.apply(placed('A'));
+    p.apply(placed('B'));
+    p.apply(placed('C'));
+    expect(p.getOrder('A')!.timeline).toBeUndefined();
+    expect(p.getOrder('C')!.timeline).toHaveLength(1);
+    // Touching B again makes it the most recent, so D evicts C, not B.
+    p.apply(confirmed('B', 10));
+    p.apply(placed('D'));
+    expect(p.getOrder('B')!.timeline).toHaveLength(2);
+    expect(p.getOrder('C')!.timeline).toBeUndefined();
+  });
+
+  it('hands out copies, so callers cannot change the read model', () => {
+    const p = make();
+    p.apply(placed('A'));
+    p.getOrder('A')!.timeline![0]!.eventType = 'tampered';
+    expect(p.getOrder('A')!.timeline![0]!.eventType).toBe('order.placed');
   });
 });
 

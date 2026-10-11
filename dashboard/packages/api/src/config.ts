@@ -26,6 +26,14 @@ const EnvSchema = z.object({
   KAFKA_SASL_MECHANISM: z.enum(['plain', 'scram-sha-256', 'scram-sha-512']).optional(),
   KAFKA_SASL_USERNAME: z.string().optional(),
   KAFKA_SASL_PASSWORD: z.string().optional(),
+  /**
+   * PEM files for TLS to the brokers: a CA the brokers' certificates chain to (managed Kafka
+   * such as Aiven uses a project CA), and a client certificate and key where the brokers
+   * authenticate clients by certificate. Setting any of them turns TLS on.
+   */
+  KAFKA_SSL_CA_FILE: z.string().optional(),
+  KAFKA_SSL_CERT_FILE: z.string().optional(),
+  KAFKA_SSL_KEY_FILE: z.string().optional(),
   ORDERS_TOPIC: z.string().default(TOPICS.orders),
   INVENTORY_TOPIC: z.string().default(TOPICS.inventory),
   /**
@@ -39,6 +47,11 @@ const EnvSchema = z.object({
   STREAM_INTERVAL_MS: z.coerce.number().int().min(50).default(500),
   /** Directory of the built web app to serve at /. Empty to serve the API only. */
   STATIC_DIR: z.string().default(''),
+  /**
+   * Origins allowed to read the API from a browser on another site, comma-separated, or `*`.
+   * Needed when the web app is hosted separately (the Vercel build); empty means same origin.
+   */
+  CORS_ORIGINS: z.string().default(''),
 });
 
 export type Config = ReturnType<typeof loadConfig>;
@@ -50,19 +63,38 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     throw new Error(`Invalid configuration:\n  ${details.join('\n  ')}`);
   }
   const e = parsed.data;
+  if (Boolean(e.KAFKA_SSL_CERT_FILE) !== Boolean(e.KAFKA_SSL_KEY_FILE)) {
+    throw new Error(
+      'Invalid configuration:\n  KAFKA_SSL_CERT_FILE and KAFKA_SSL_KEY_FILE must be set together',
+    );
+  }
+  const tls =
+    e.KAFKA_SSL_CA_FILE || e.KAFKA_SSL_CERT_FILE
+      ? {
+          caFile: e.KAFKA_SSL_CA_FILE ?? null,
+          certFile: e.KAFKA_SSL_CERT_FILE ?? null,
+          keyFile: e.KAFKA_SSL_KEY_FILE ?? null,
+        }
+      : null;
   if (e.KAFKA_SASL_MECHANISM && !(e.KAFKA_SASL_USERNAME && e.KAFKA_SASL_PASSWORD)) {
     throw new Error(
       'Invalid configuration:\n  KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD are required with KAFKA_SASL_MECHANISM',
     );
   }
   return {
-    http: { port: e.PORT, host: e.HOST, staticDir: e.STATIC_DIR || null },
+    http: {
+      port: e.PORT,
+      host: e.HOST,
+      staticDir: e.STATIC_DIR || null,
+      corsOrigins: e.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
+    },
     logLevel: e.LOG_LEVEL,
     kafka: {
       brokers: e.KAFKA_BROKERS,
       clientId: e.KAFKA_CLIENT_ID,
       groupId: `${e.KAFKA_GROUP_PREFIX}-${hostname()}-${Date.now()}`,
-      ssl: e.KAFKA_SSL,
+      ssl: e.KAFKA_SSL || tls !== null,
+      tls,
       sasl: e.KAFKA_SASL_MECHANISM
         ? {
             mechanism: e.KAFKA_SASL_MECHANISM,

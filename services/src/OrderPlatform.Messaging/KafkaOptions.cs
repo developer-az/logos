@@ -10,7 +10,8 @@ public sealed class KafkaOptions
     public string ClientId { get; set; } = Environment.MachineName;
     public string GroupId { get; set; } = "";
 
-    /// <summary>Plaintext for local compose; SaslSsl in-cluster (Strimzi TLS listener with SCRAM).</summary>
+    /// <summary>Plaintext for local compose; SaslSsl in-cluster (Strimzi TLS listener with SCRAM);
+    /// Ssl with a client certificate for managed Kafka that uses certificate auth.</summary>
     public SecurityProtocol SecurityProtocol { get; set; } = SecurityProtocol.Plaintext;
     public SaslMechanism SaslMechanism { get; set; } = SaslMechanism.ScramSha512;
     public string? SaslUsername { get; set; }
@@ -18,6 +19,11 @@ public sealed class KafkaOptions
 
     /// <summary>PEM file of the cluster CA (Strimzi: the &lt;cluster&gt;-cluster-ca-cert Secret, key ca.crt).</summary>
     public string? SslCaLocation { get; set; }
+
+    /// <summary>Client certificate and its private key (PEM), for brokers that authenticate
+    /// clients by certificate over SSL, such as Aiven's default Kafka listener.</summary>
+    public string? SslCertificateLocation { get; set; }
+    public string? SslKeyLocation { get; set; }
 
     /// <summary>Turns the Kafka consumer and outbox dispatcher off (used by API-only tests).</summary>
     public bool Enabled { get; set; } = true;
@@ -46,6 +52,8 @@ public sealed class KafkaOptions
             config.SaslPassword = SaslPassword;
         }
         if (SslCaLocation is not null) config.SslCaLocation = SslCaLocation;
+        if (SslCertificateLocation is not null) config.SslCertificateLocation = SslCertificateLocation;
+        if (SslKeyLocation is not null) config.SslKeyLocation = SslKeyLocation;
         return config;
     }
 }

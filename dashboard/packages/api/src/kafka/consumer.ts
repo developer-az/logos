@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import {
   Kafka,
   Partitioners,
@@ -31,7 +32,13 @@ export function kafkaClientConfig(cfg: Config['kafka'], log?: Logger): KafkaConf
   return {
     clientId: cfg.clientId,
     brokers: cfg.brokers,
-    ssl: cfg.ssl,
+    ssl: cfg.tls
+      ? {
+          ...(cfg.tls.caFile && { ca: [readFileSync(cfg.tls.caFile, 'utf8')] }),
+          ...(cfg.tls.certFile && { cert: readFileSync(cfg.tls.certFile, 'utf8') }),
+          ...(cfg.tls.keyFile && { key: readFileSync(cfg.tls.keyFile, 'utf8') }),
+        }
+      : cfg.ssl,
     // The config schema guarantees one of the mechanisms kafkajs accepts.
     sasl: (cfg.sasl ?? undefined) as SASLOptions | undefined,
     logLevel: logLevel.WARN,
