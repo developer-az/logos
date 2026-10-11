@@ -17,6 +17,9 @@ env:
   KUSTOMIZE_VERSION: 5.8.2
   KUBECONFORM_VERSION: 0.8.0
   ACTIONLINT_VERSION: 1.7.12
+  # Pinned: the catalog's 2026-10-08 external-secrets update (b7e2015) ships a SecretStore schema
+  # kubeconform can't load, which it reports as "could not find schema". Move forward deliberately.
+  CRDS_CATALOG_REF: f1e7f6bc0537bf0622ffe6e47dbaa85914fabbec
 
 jobs:
   manifests:
@@ -35,7 +38,7 @@ jobs:
             echo "::group::$dir"
             kustomize build "$dir" | kubeconform -strict -summary -kubernetes-version 1.33.0 \
               -schema-location default \
-              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' -
+              -schema-location "https://raw.githubusercontent.com/datreeio/CRDs-catalog/${CRDS_CATALOG_REF}/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json" -
             echo "::endgroup::"
           done
 
@@ -45,11 +48,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
-        run: shellcheck scripts/*.sh deploy/vm/*.sh deploy/railway/*.sh
+        run: shellcheck scripts/*.sh deploy/vm/*.sh deploy/free/*.sh deploy/railway/*.sh
       - name: VM compose file
         run: |
           printf 'POSTGRES_PASSWORD=lint-only\nSITE_ADDRESS=example.com\n' > deploy/vm/.env
           docker compose -f deploy/vm/compose.yaml config --quiet
+      - name: Free compose file
+        run: |
+          printf 'POSTGRES_PASSWORD=lint-only\nSITE_ADDRESS=example.com\nKAFKA_BOOTSTRAP=kafka.example.com:12345\n' > deploy/free/.env
+          docker compose -f deploy/free/compose.yaml config --quiet
       - name: VM load generator matches the Kubernetes one
         run: |
           awk '/run.sh: \|/{f=1;next} /^---/{f=0} f' deploy/k8s/apps/load-generator.yaml | sed 's/^    //' \

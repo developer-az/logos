@@ -21,6 +21,7 @@ async function main(): Promise<void> {
     healthy: () => !consumerFailed && (consumer?.healthy ?? true),
     streamIntervalMs: config.streamIntervalMs,
     staticDir: config.http.staticDir,
+    corsOrigins: config.http.corsOrigins,
     logger: { level: config.logLevel },
   });
   const log = app.log;

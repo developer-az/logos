@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DashboardSnapshot } from '@orderflow/contracts';
-import { buildServer, type ServerDeps } from '../src/http/server';
+import { buildServer, corsPolicy, type ServerDeps } from '../src/http/server';
 import { createMetrics } from '../src/metrics';
 import { Projection } from '../src/projection/projection';
 import { confirmed, level, placed } from './fixtures';
@@ -136,6 +136,38 @@ describe('live stream (SSE)', () => {
   });
 });
 
+describe('CORS', () => {
+  it('lets listed origins read the API and the stream', async () => {
+    const { app } = setup({ corsOrigins: ['https://logos.vercel.app'] });
+    const ok = await app.inject({ url: '/api/snapshot', headers: { origin: 'https://logos.vercel.app' } });
+    expect(ok.headers['access-control-allow-origin']).toBe('https://logos.vercel.app');
+    expect(ok.headers.vary).toMatch(/Origin/);
+    const other = await app.inject({ url: '/api/snapshot', headers: { origin: 'https://evil.example' } });
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
+    // Operator endpoints never get CORS headers.
+    const probe = await app.inject({ url: '/healthz', headers: { origin: 'https://logos.vercel.app' } });
+    expect(probe.headers['access-control-allow-origin']).toBeUndefined();
+
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = app.server.address() as AddressInfo;
+    const client = await openStream(`http://127.0.0.1:${port}/api/stream`, { origin: 'https://logos.vercel.app' });
+    try {
+      expect(client.response.headers['access-control-allow-origin']).toBe('https://logos.vercel.app');
+      await client.next();
+    } finally {
+      client.close();
+      await app.close();
+    }
+  });
+
+  it('sends nothing by default, and * when any origin is allowed', () => {
+    expect(corsPolicy([])('https://a.dev')).toBeNull();
+    expect(corsPolicy(['*'])('https://a.dev')).toBe('*');
+    expect(corsPolicy(['https://a.dev/'])('https://a.dev')).toBe('https://a.dev');
+    expect(corsPolicy(['https://a.dev'])(undefined)).toBeNull();
+  });
+});
+
 describe('static web app', () => {
   it('serves index.html for client-side routes but 404s unknown API paths', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'web-'));
@@ -151,11 +183,11 @@ describe('static web app', () => {
   });
 });
 
-async function openStream(url: string) {
+async function openStream(url: string, headers: Record<string, string> = {}) {
   const frames: DashboardSnapshot[] = [];
   const waiters: Array<(s: DashboardSnapshot) => void> = [];
   const response = await new Promise<IncomingMessage>((resolve, reject) =>
-    get(url, resolve).on('error', reject),
+    get(url, { headers }, resolve).on('error', reject),
   );
   let buffer = '';
   response.setEncoding('utf8');

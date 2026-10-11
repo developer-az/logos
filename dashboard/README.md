@@ -31,18 +31,25 @@ npm run dev:web                                 # UI on :5173, proxies /api
 KAFKA_BROKERS=localhost:9094 npm run simulate -- --rate 5   # optional fake traffic
 ```
 
-### Public demo (no backend)
+### Public build (what Vercel serves)
 
 ```sh
-npm run build:demo        # static site in packages/web/dist
+npm run build:demo                                      # simulator only
+VITE_API_URL=https://<backend> npm run build:demo       # live, with the simulator as fallback
 npx vite preview packages/web   # or deploy that folder anywhere (vercel.json does it on Vercel)
 ```
 
-With `VITE_DEMO=true` the page doesn't open `/api/stream`. It runs `OrderFlowSimulator`, sends
-each event through `parseEvent` (the consumer's contract validation, including ~2% redeliveries
-and the odd malformed message) and folds it into the API's `Projection`, all in the browser
-(`packages/web/src/demo/demo-stream.ts`). An hour of history is generated on load so the charts
-start full. Only the transport differs from production: no Kafka, no SSE, no dead-letter topic.
+With `VITE_API_URL` set, the page opens `<VITE_API_URL>/api/stream` cross-origin (the API's
+`CORS_ORIGINS` must allow the site). If that errors or sends nothing within 8 seconds, the page
+switches to the simulator for the rest of the visit and says so, so a backend on free hosting
+being down never shows a broken page (`packages/web/src/hooks/fallback-source.ts`).
+[deploy/free](../deploy/free/README.md) runs that backend for $0.
+
+The simulator runs `OrderFlowSimulator`, sends each event through `parseEvent` (the consumer's
+contract validation, including ~2% redeliveries and the odd malformed message) and folds it into
+the API's `Projection`, all in the browser (`packages/web/src/demo/demo-stream.ts`). An hour of
+history is generated on load so the charts start full. Only the transport differs from
+production: no Kafka, no SSE, no dead-letter topic.
 
 ## Test
 
@@ -64,15 +71,17 @@ dead-letters only the malformed message.
 | `GET /api/snapshot` | Everything the dashboard shows |
 | `GET /api/stream` | SSE: a `snapshot` event on connect and whenever the state changes (coalesced, at most every `STREAM_INTERVAL_MS`) |
 | `GET /api/orders?status=&limit=` | Orders, newest first |
-| `GET /api/orders/:orderId` | One order |
+| `GET /api/orders/:orderId` | One order, with its saga timeline across both topics while it is among the last 500 touched |
 | `GET /api/inventory?lowStock=true` | Stock per SKU |
 | `GET /healthz` | Liveness: fails if the consumer has died for good |
 | `GET /readyz` | Readiness: 503 until the consumer has replayed the topics to their end offsets at startup |
 | `GET /metrics` | Prometheus |
 
 Configuration is by environment variable, validated at startup (`packages/api/src/config.ts`):
-`KAFKA_BROKERS`, `KAFKA_SSL`, `KAFKA_SASL_MECHANISM`/`_USERNAME`/`_PASSWORD`, `ORDERS_TOPIC`,
-`INVENTORY_TOPIC`, `DEAD_LETTER_ENABLED`, `LOW_STOCK_THRESHOLD`, `CURRENCY`, `PORT`, `STATIC_DIR`.
+`KAFKA_BROKERS`, `KAFKA_SSL`, `KAFKA_SASL_MECHANISM`/`_USERNAME`/`_PASSWORD`,
+`KAFKA_SSL_CA_FILE`/`_CERT_FILE`/`_KEY_FILE` (PEM files; client-certificate auth as on Aiven),
+`ORDERS_TOPIC`, `INVENTORY_TOPIC`, `DEAD_LETTER_ENABLED`, `LOW_STOCK_THRESHOLD`, `CURRENCY`,
+`PORT`, `STATIC_DIR`, `CORS_ORIGINS` (comma-separated or `*`; only `/api/*` gets CORS headers).
 
 ## Design decisions
 
@@ -87,6 +96,10 @@ Configuration is by environment variable, validated at startup (`packages/api/sr
 - **Poison messages don't block.** Invalid messages are counted, sent to `<topic>.dlt` with the
   platform's `dlt-*` headers, and skipped. Unknown event types and newer schema versions are
   skipped without dead-lettering, as the contract requires.
+- **Saga traces from the read model.** Every event that carries an order id (from either topic)
+  is added to that order's timeline in event-time order, because the two topics are consumed
+  independently and can interleave either way. Only the 500 most recently touched orders keep a
+  timeline, so memory stays bounded.
 - **Money as integer cents.** The services publish decimals; amounts are converted once at the
   boundary so sums don't drift.
 - **Bounded push.** SSE snapshots are coalesced per tick and serialized once for all clients,

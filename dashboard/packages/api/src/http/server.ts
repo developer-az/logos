@@ -17,6 +17,11 @@ export interface ServerDeps {
   healthy: () => boolean;
   streamIntervalMs: number;
   staticDir?: string | null;
+  /**
+   * Browser origins allowed to read the read-only API cross-origin (a front end hosted
+   * elsewhere, such as the Vercel build). `['*']` allows any origin. Empty: same origin only.
+   */
+  corsOrigins?: readonly string[];
   logger?: FastifyServerOptions['logger'];
   now?: () => Date;
 }
@@ -54,6 +59,16 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     },
   );
   app.decorate('snapshotStream', stream);
+
+  const allowOrigin = corsPolicy(deps.corsOrigins ?? []);
+  const corsHeaders = (origin: string | undefined): Record<string, string> => {
+    const allowed = allowOrigin(origin);
+    return allowed ? { 'access-control-allow-origin': allowed, vary: 'Origin' } : {};
+  };
+  // Every API route is a GET without credentials, which browsers send without a preflight.
+  app.addHook('onRequest', async (req, reply) => {
+    if (req.url.startsWith('/api/')) reply.headers(corsHeaders(req.headers.origin));
+  });
   app.addHook('onReady', async () => stream.start());
   app.addHook('onClose', async () => stream.stop());
 
@@ -93,8 +108,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   });
 
   app.get('/api/stream', (req, reply) => {
+    // Hijacked responses skip Fastify's header handling, so CORS goes in with the stream's own.
     reply.hijack();
-    stream.attach(reply.raw);
+    stream.attach(reply.raw, corsHeaders(req.headers.origin));
   });
 
   if (deps.staticDir) {
@@ -110,6 +126,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   }
 
   return app;
+}
+
+/** Returns the Access-Control-Allow-Origin value for a request origin, or null to send none. */
+export function corsPolicy(origins: readonly string[]): (origin: string | undefined) => string | null {
+  if (origins.includes('*')) return () => '*';
+  const allowed = new Set(origins.map((o) => o.replace(/\/+$/, '')));
+  return (origin) => (origin && allowed.has(origin) ? origin : null);
 }
 
 declare module 'fastify' {

@@ -35,4 +35,25 @@ public class KafkaOptionsTests
         Assert.Equal("from-a-secret", config.SaslPassword);
         Assert.Equal("/etc/kafka-ca/ca.crt", config.SslCaLocation);
     }
+
+    [Fact]
+    public void Ssl_carries_a_client_certificate_and_no_sasl()
+    {
+        var options = new KafkaOptions
+        {
+            BootstrapServers = "logos-kafka.aivencloud.com:12345",
+            SecurityProtocol = SecurityProtocol.Ssl,
+            SslCaLocation = "/kafka/ca.pem",
+            SslCertificateLocation = "/kafka/service.cert",
+            SslKeyLocation = "/kafka/service.key",
+        };
+
+        var config = options.Apply(new AdminClientConfig());
+
+        Assert.Equal(SecurityProtocol.Ssl, config.SecurityProtocol);
+        Assert.Null(config.SaslMechanism);
+        Assert.Equal("/kafka/ca.pem", config.SslCaLocation);
+        Assert.Equal("/kafka/service.cert", config.SslCertificateLocation);
+        Assert.Equal("/kafka/service.key", config.SslKeyLocation);
+    }
 }

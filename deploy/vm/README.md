@@ -31,6 +31,7 @@ so x86 and Arm hosts both work.
 |---|---|---|
 | **Oracle Cloud Always Free, Ampere A1 (Arm)** | $0 | Recommended to start. The Always Free allowance is 2 OCPU and 12 GB since June 2026, plenty for this. Open 80/443 in the VCN security list as well; `setup.sh` handles the instance's own iptables rules. Free-tier capacity can be scarce in popular regions. |
 | Any 2 to 4 GB VM (DigitalOcean, Vultr, Linode, Azure, Hetzner, ...) | a monthly fee, check current pricing | Same steps. Student credits (GitHub Student Developer Pack, Azure for Students) usually cover it for months. Hetzner's cheapest cloud tiers have shown "currently not available" since August 2026. |
+| Oracle Always Free micro VM (1 GB) plus Aiven free Kafka ([deploy/free](../free/README.md)) | $0 | When the A1 allowance is taken: the AMD micro VMs are a separate allowance. Kafka is managed by Aiven, the rest runs on the VM from prebuilt images. |
 | Managed pieces: Render or Railway for three services, Aiven free Kafka, managed Postgres | several paid services | Aiven's free Kafka allows 5 topics with 2 partitions (enough: 2 topics plus 2 dead-letter topics) but powers off when idle, and free web tiers sleep, which stops Kafka consumers. More accounts, more moving parts, and it costs more than one VM. |
 | AKS ([deploy/](../README.md#the-aks-demo)) | the most: 3 nodes plus a load balancer | Production shape: 3 Kafka brokers with TLS and SCRAM, 2 replicas each, secrets from Key Vault, automated deploys from CI. Best kept for when that matters; stop the cluster between demos. |
 

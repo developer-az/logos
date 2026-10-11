@@ -9,6 +9,7 @@ import {
   type OrderView,
   type RecentEvent,
   type ThroughputPoint,
+  type TimelineEntry,
 } from '@orderflow/contracts';
 import { BoundedSet } from './bounded-set';
 import { latencyStats, SampleWindow } from './stats';
@@ -24,6 +25,8 @@ export interface ProjectionOptions {
   latencyWindow?: number;
   recentOrders?: number;
   recentEvents?: number;
+  /** How many orders keep their saga timeline (most recently touched first). */
+  timelineOrders?: number;
   /** Width of the throughput chart, in one-minute buckets ending at the current minute. */
   throughputMinutes?: number;
   now?: () => Date;
@@ -32,6 +35,7 @@ export interface ProjectionOptions {
 export type ApplyOutcome = 'applied' | 'duplicate';
 
 const MINUTE_MS = 60_000;
+const MAX_TIMELINE_STEPS = 12;
 /** Allowed moves of the order saga: placed -> confirmed | rejected | cancelled, confirmed -> cancelled. */
 const NEXT: Record<OrderStatus, ReadonlySet<OrderStatus>> = {
   placed: new Set(['confirmed', 'rejected', 'cancelled']),
@@ -68,6 +72,8 @@ export class Projection {
   private readonly latency: SampleWindow;
   private readonly throughput = new Map<number, { orders: number; inventory: number }>();
   private readonly recent: RecentEvent[] = [];
+  /** Saga timelines of the most recently touched orders; insertion-ordered, oldest first. */
+  private readonly timelines = new Map<string, TimelineEntry[]>();
   private revenueCents = 0;
   private accepted = 0;
   private rejected = 0;
@@ -89,6 +95,7 @@ export class Projection {
       latencyWindow: 1_000,
       recentOrders: 12,
       recentEvents: 50,
+      timelineOrders: 500,
       throughputMinutes: 60,
       now: () => new Date(),
       ...options,
@@ -164,6 +171,9 @@ export class Projection {
         break;
     }
 
+    if (event.eventType !== 'inventory.stock-level-changed') {
+      this.recordStep(event.payload.orderId, event.eventType, at);
+    }
     this.countThroughput(event, at);
     this.recent.push({
       eventId: event.eventId,
@@ -190,7 +200,7 @@ export class Projection {
 
   getOrder(orderId: string): OrderView | undefined {
     const o = this.orders.get(orderId);
-    return o ? toOrderView(o) : undefined;
+    return o ? this.withTimeline(o) : undefined;
   }
 
   listOrders(filter: { status?: OrderStatus; limit: number }): OrderView[] {
@@ -211,7 +221,7 @@ export class Projection {
     const recent: OrderView[] = [];
     for (const id of this.recentOrderIds.keys()) {
       const o = this.orders.get(id);
-      if (o) recent.push(toOrderView(o));
+      if (o) recent.push(this.withTimeline(o));
     }
     recent.reverse();
 
@@ -294,6 +304,34 @@ export class Projection {
       else this.rejected++;
       if (order.placedAt) this.recordLatency(order);
     }
+  }
+
+  /**
+   * Adds one saga step to an order's timeline, in event-time order (the order and inventory
+   * topics are consumed independently, so their events can interleave either way).
+   */
+  private recordStep(orderId: string, eventType: string, at: string): void {
+    let steps = this.timelines.get(orderId);
+    if (steps) {
+      this.timelines.delete(orderId);
+    } else {
+      steps = [];
+      if (this.timelines.size >= this.opts.timelineOrders) {
+        this.timelines.delete(this.timelines.keys().next().value as string);
+      }
+    }
+    this.timelines.set(orderId, steps);
+    let i = steps.length;
+    while (i > 0 && steps[i - 1]!.occurredAt > at) i--;
+    steps.splice(i, 0, { eventType, occurredAt: at });
+    // A saga has at most five steps; anything beyond that is a misbehaving producer.
+    if (steps.length > MAX_TIMELINE_STEPS) steps.shift();
+  }
+
+  private withTimeline(o: OrderState): OrderView {
+    const view = toOrderView(o);
+    const steps = this.timelines.get(o.orderId);
+    return steps ? { ...view, timeline: steps.map((s) => ({ ...s })) } : view;
   }
 
   private recordLatency(order: OrderState): void {
