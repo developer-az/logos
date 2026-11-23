@@ -273,7 +273,7 @@ h1 {
 /* KPI strip: one surface, divided by rules. No tiles, icons or sparklines. */
 .kpis {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
@@ -306,6 +306,10 @@ h1 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tile-lead .tile-value {
+  font-size: 30px;
 }
 
 .tile-hint {
@@ -357,113 +361,149 @@ h1 {
   margin: 4px 0 12px;
 }
 
-/* The signature element: two Kafka lanes with pulses whose speed is the live rate. */
-.pipeline .flow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) minmax(0, 1fr);
-  gap: 20px;
-  align-items: center;
-  margin-top: 18px;
+/* The lead panel: one order's real path across both Kafka topics. */
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.node {
-  padding: 11px 13px;
+.quiet-button {
+  padding: 4px 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.quiet-button:active {
+  transform: scale(0.98);
+}
+
+.spotlight-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.spotlight-order {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 6px 0 0;
+}
+
+.spotlight-total {
+  font-weight: 600;
+}
+
+.spotlight-age,
+.spotlight-reason {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.spotlight-reason {
+  margin: 4px 0 0;
+}
+
+.spotlight-summary {
+  display: grid;
+  gap: 2px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.spotlight-summary strong {
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.spotlight-summary span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.step {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 12px 12px 17px;
   background: var(--raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
-  text-align: center;
-  min-width: 0;
 }
 
-.node-name {
+.step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  right: -12px;
+  top: 50%;
+  width: 12px;
+  height: 1px;
+  background: var(--border);
+}
+
+.step-mark {
+  position: absolute;
+  left: 6px;
+  top: 18px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--orders);
+}
+
+.step-inventory .step-mark {
+  background: var(--inventory);
+}
+
+.step-name {
   font-size: 13px;
   font-weight: 600;
 }
 
-.node-detail {
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 2px;
-}
-
-.topics {
-  display: grid;
-  gap: 14px;
-  min-width: 0;
-}
-
-.topic-track {
-  display: block;
-  width: 100%;
-  height: 8px;
-  overflow: visible;
-}
-
-.topic-rail {
-  stroke: var(--border);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.topic-signal {
-  stroke: var(--orders);
-  stroke-width: 2;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-  stroke-dasharray: 4 96;
-}
-
-.topic-left .topic-signal {
-  stroke: var(--inventory);
-}
-
-.topic-label {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 13px;
-  margin-top: 1px;
-}
-
-.topic-label .mono {
+.step-topic {
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.topic-label strong {
+.spotlight-note {
+  color: var(--muted);
   font-size: 13px;
+  margin: 14px 0 0;
+}
+
+.raw-stream > summary {
   font-weight: 600;
+  color: var(--text);
 }
 
-.topic-what {
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 2px;
+.raw-stream[open] > summary {
+  margin-bottom: 12px;
 }
 
-.flow-down {
-  color: var(--muted);
-  font-size: 13px;
-  text-align: center;
-  margin: 12px 0 8px;
-}
-
-.flow-sink {
-  display: flex;
-  justify-content: center;
-}
-
-.flow-sink .node {
-  min-width: min(100%, 320px);
-}
-
-.flow-note {
-  color: var(--muted);
-  font-size: 13px;
-  margin: 12px 0 0;
-  text-align: center;
+.feed-inner {
+  min-width: 0;
 }
 
 /* Charts: no chrome, a real scale, marks that match their legend swatches. */
@@ -490,6 +530,11 @@ h1 {
   width: 14px;
   height: 2px;
   background: var(--orders);
+}
+
+.legend-rate {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .chart-card {
@@ -850,7 +895,7 @@ tbody tr:last-child td {
 }
 
 .consumer {
-  margin-top: var(--gap);
+  margin: 0 0 12px;
   color: var(--muted);
   font-size: 13px;
 }
@@ -896,10 +941,6 @@ tbody tr:last-child td {
 
   .topbar-inner {
     padding: 0 16px;
-  }
-
-  .pipeline .flow {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .bar-row {
@@ -954,7 +995,7 @@ tbody tr:last-child td {
 
 /*
  * Motion. The point of each move is what it says: a value settling when new data
- * arrives, a marker on the newest reading, a pulse whose pace is the topic's event rate,
+ * arrives, a marker on the newest reading, a trace that arrives step by step,
  * a new event entering the stream, saga steps arriving in their real order.
  */
 @media (prefers-reduced-motion: no-preference) {
@@ -969,21 +1010,15 @@ tbody tr:last-child td {
   }
 
   .bar-row,
+  .step,
   .feed li,
   .trace-step {
     animation: rise-in 420ms var(--ease-out) both;
   }
 
   .bar-row { animation-delay: calc(var(--i, 0) * 60ms); }
+  .step,
   .trace-step { animation-delay: calc(var(--i, 0) * 70ms); }
-
-  .topic-signal-right {
-    animation: signal-right var(--flow-speed, 1.4s) linear infinite;
-  }
-
-  .topic-signal-left {
-    animation: signal-left var(--flow-speed, 1.4s) linear infinite;
-  }
 }
 
 @keyframes value-settle {
@@ -999,14 +1034,6 @@ tbody tr:last-child td {
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
-}
-
-@keyframes signal-right {
-  to { stroke-dashoffset: -100; }
-}
-
-@keyframes signal-left {
-  to { stroke-dashoffset: 100; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -42,6 +42,8 @@ export function ThroughputChart({ points }: { points: ThroughputPoint[] }) {
     e.preventDefault();
   };
 
+  // The current minute is still filling up; the rates in the legend use the last complete one.
+  const lastFull = points[n - 2];
   const last = points[n - 1];
   const activePoint = active != null ? points[active] : undefined;
 
@@ -53,6 +55,9 @@ export function ThroughputChart({ points }: { points: ThroughputPoint[] }) {
           <li key={s.key}>
             <span className="swatch" style={{ background: s.color }} aria-hidden="true" />
             {s.label}
+            <span className="legend-rate">
+              {lastFull ? `${formatCount(lastFull[s.key])}/min` : '—'}
+            </span>
           </li>
         ))}
       </ul>
