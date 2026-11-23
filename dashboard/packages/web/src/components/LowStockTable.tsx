@@ -28,11 +28,11 @@ export function LowStockTable({ items, threshold, skus }: { items: InventoryView
                 <td>
                   {i.available <= 0 ? (
                     <span className="status status-critical">
-                      <span aria-hidden="true">●</span> Out of stock
+                      <span className="mark" aria-hidden="true" /> Out of stock
                     </span>
                   ) : (
                     <span className="status status-warning">
-                      <span aria-hidden="true">▲</span> Low
+                      <span className="mark" aria-hidden="true" /> Low
                     </span>
                   )}
                 </td>

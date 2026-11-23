@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, type CSSProperties } from 'react';
 import type { OrderView, TimelineEntry } from '@orderflow/contracts';
 import { eventLabel, shortId, topicOf } from '../lib/events';
 import { formatAgo, formatDuration, formatMoney } from '../lib/format';
@@ -16,7 +16,7 @@ export function RecentOrders({ orders, now, currency }: { orders: OrderView[]; n
   const traceable = orders.some((o) => o.timeline?.length);
 
   return (
-    <section className="card wide" aria-labelledby="orders-title">
+    <section className="card span-12" aria-labelledby="orders-title">
       <h2 id="orders-title">Recent orders</h2>
       {traceable && <p className="card-hint">Select an order to trace its saga through Kafka.</p>}
       {orders.length === 0 ? (
@@ -47,7 +47,7 @@ export function RecentOrders({ orders, now, currency }: { orders: OrderView[]; n
                           aria-controls={`trace-${o.orderId}`}
                           onClick={() => setOpenId(open ? null : o.orderId)}
                         >
-                          <span aria-hidden="true">{open ? '▾' : '▸'}</span> {shortId(o.orderId)}
+                          {shortId(o.orderId)}
                         </button>
                       ) : (
                         shortId(o.orderId)
@@ -86,7 +86,11 @@ export function SagaTrace({ steps }: { steps: TimelineEntry[] }) {
   return (
     <ol className="trace" aria-label="Saga trace">
       {steps.map((s, i) => (
-        <li key={`${s.eventType}-${i}`} className={`trace-step trace-${topicOf(s.eventType)}`}>
+        <li
+          key={`${s.eventType}-${i}`}
+          className={`trace-step trace-${topicOf(s.eventType)}`}
+          style={{ '--i': i } as CSSProperties}
+        >
           <span className="trace-name">{eventLabel(s.eventType)}</span>
           <span className="trace-meta">
             <span className="mono">{topicOf(s.eventType)}.events.v1</span>

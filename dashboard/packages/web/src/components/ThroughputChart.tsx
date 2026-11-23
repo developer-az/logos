@@ -4,11 +4,11 @@ import { formatClock, formatCount } from '../lib/format';
 import { linearScale, linePath, niceMax } from '../lib/scale';
 import { useElementWidth } from '../hooks/useElementWidth';
 
-const H = 220;
+const H = 250;
 const M = { top: 12, right: 84, bottom: 24, left: 36 };
 const SERIES = [
-  { key: 'orders', label: 'Order events', color: 'var(--series-1)' },
-  { key: 'inventory', label: 'Inventory events', color: 'var(--series-2)' },
+  { key: 'orders', label: 'Order events', color: 'var(--orders)' },
+  { key: 'inventory', label: 'Inventory events', color: 'var(--inventory)' },
 ] as const;
 
 /**
@@ -24,7 +24,7 @@ export function ThroughputChart({ points }: { points: ThroughputPoint[] }) {
   const yMax = niceMax(Math.max(0, ...points.flatMap((p) => [p.orders, p.inventory])));
   const x = (i: number) => M.left + (n <= 1 ? 0 : (i / (n - 1)) * (W - M.left - M.right));
   const y = linearScale(yMax, H - M.bottom, M.top);
-  const ticks = [0, yMax / 2, yMax];
+  const ticks = [0, yMax / 4, yMax / 2, (3 * yMax) / 4, yMax];
   const xTicks = n > 0 ? [0, Math.floor((n - 1) / 2), n - 1] : [];
 
   const indexAt = (clientX: number, rect: DOMRect) => {
@@ -46,7 +46,7 @@ export function ThroughputChart({ points }: { points: ThroughputPoint[] }) {
   const activePoint = active != null ? points[active] : undefined;
 
   return (
-    <section className="card wide" aria-labelledby={titleId}>
+    <section className="card span-8 chart-card" aria-labelledby={titleId}>
       <h2 id={titleId}>Events per minute</h2>
       <ul className="legend">
         {SERIES.map((s) => (
@@ -92,6 +92,7 @@ export function ThroughputChart({ points }: { points: ThroughputPoint[] }) {
               strokeLinecap="round"
             />
           ))}
+          {last && <circle className="latest-dot" cx={x(n - 1)} cy={y(last.orders)} r={3.5} fill="var(--orders)" />}
           {last &&
             SERIES.map((s, k) => (
               <text
@@ -109,7 +110,7 @@ export function ThroughputChart({ points }: { points: ThroughputPoint[] }) {
             <g className="crosshair" pointerEvents="none">
               <line x1={x(active!)} x2={x(active!)} y1={M.top} y2={H - M.bottom} />
               {SERIES.map((s) => (
-                <circle key={s.key} cx={x(active!)} cy={y(activePoint[s.key])} r={4} fill={s.color} stroke="var(--surface-1)" strokeWidth={2} />
+                <circle key={s.key} cx={x(active!)} cy={y(activePoint[s.key])} r={4} fill={s.color} stroke="var(--surface)" strokeWidth={2} />
               ))}
             </g>
           )}

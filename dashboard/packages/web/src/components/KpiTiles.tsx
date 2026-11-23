@@ -1,7 +1,8 @@
+import { useEffect, useRef, useState } from 'react';
 import type { DashboardSnapshot } from '@orderflow/contracts';
 import { formatCount, formatDuration, formatMoney, formatPercent } from '../lib/format';
 
-/** Headline numbers. Plain stat tiles: a single value is read faster than any chart of it. */
+/** Headline numbers. One strip, divided by rules: a single value is read faster than any chart of it. */
 export function KpiTiles({ snapshot }: { snapshot: DashboardSnapshot }) {
   const { orders, decisionLatency, throughput } = snapshot;
   // The current minute is still filling up, so rate uses the last complete one.
@@ -31,12 +32,35 @@ export function KpiTiles({ snapshot }: { snapshot: DashboardSnapshot }) {
   return (
     <section className="kpis" aria-label="Key figures">
       {tiles.map((t) => (
-        <div className="tile" key={t.label}>
-          <div className="tile-label">{t.label}</div>
-          <div className="tile-value">{t.value}</div>
-          <div className="tile-hint">{t.hint}</div>
-        </div>
+        <KpiCell key={t.label} {...t} />
       ))}
     </section>
   );
+}
+
+function KpiCell({ label, value, hint }: { label: string; value: string; hint: string }) {
+  const changing = useSettle(value);
+  return (
+    <div className="tile">
+      <div className="tile-label">{label}</div>
+      <div className={`tile-value${changing ? ' is-changing' : ''}`}>{value}</div>
+      <div className="tile-hint">{hint}</div>
+    </div>
+  );
+}
+
+/** A figure settles when a new snapshot changes it; the number itself is never held back. */
+function useSettle(value: string): boolean {
+  const previous = useRef(value);
+  const [changing, setChanging] = useState(false);
+
+  useEffect(() => {
+    if (previous.current === value) return;
+    previous.current = value;
+    setChanging(true);
+    const timer = setTimeout(() => setChanging(false), 440);
+    return () => clearTimeout(timer);
+  }, [value]);
+
+  return changing;
 }
