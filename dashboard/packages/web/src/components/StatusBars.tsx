@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { OrderStatus } from '@orderflow/contracts';
 import { formatCount } from '../lib/format';
 
@@ -19,8 +20,13 @@ export function StatusBars({ byStatus }: { byStatus: Record<OrderStatus, number>
     <section className="card" aria-labelledby="status-title">
       <h2 id="status-title">Orders by status</h2>
       <ul className="bars">
-        {ORDER.map((s) => (
-          <li key={s} className="bar-row" title={`${LABELS[s]}: ${formatCount(byStatus[s])}`}>
+        {ORDER.map((s, i) => (
+          <li
+            key={s}
+            className="bar-row"
+            style={{ '--i': i } as CSSProperties}
+            title={`${LABELS[s]}: ${formatCount(byStatus[s])}`}
+          >
             <span className="bar-label">{LABELS[s]}</span>
             <span className="bar-track">
               <span

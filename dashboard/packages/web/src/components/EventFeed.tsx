@@ -8,7 +8,7 @@ const clock = (iso: string) =>
 export function EventFeed({ events, limit = 12 }: { events: RecentEvent[]; limit?: number }) {
   const shown = events.slice(0, limit);
   return (
-    <section className="card wide" aria-labelledby="feed-title">
+    <section className="feed-inner" aria-labelledby="feed-title">
       <h2 id="feed-title">Event stream</h2>
       {shown.length === 0 ? (
         <p className="empty">No events yet.</p>

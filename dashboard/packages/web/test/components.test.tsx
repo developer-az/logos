@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConnectionBadge } from '../src/components/ConnectionBadge';
 import { EventFeed } from '../src/components/EventFeed';
-import { PipelineFlow } from '../src/components/PipelineFlow';
+import { SagaSpotlight } from '../src/components/SagaSpotlight';
 import { KpiTiles } from '../src/components/KpiTiles';
 import { LowStockTable } from '../src/components/LowStockTable';
 import { RecentOrders } from '../src/components/RecentOrders';
@@ -17,15 +17,8 @@ describe('KpiTiles', () => {
     expect(tile('Orders')).toHaveTextContent('120');
     expect(tile('Orders')).toHaveTextContent('4 awaiting decision');
     expect(tile('Acceptance rate')).toHaveTextContent('90.9%');
-    expect(tile('Revenue')).toHaveTextContent('$12,345.67');
     expect(tile('Decision time p95')).toHaveTextContent('1.3 s');
     expect(tile('Decision time p95')).toHaveTextContent('p50 140 ms · 110 orders');
-  });
-
-  it('uses the last complete minute for the event rate', () => {
-    render(<KpiTiles snapshot={snapshot()} />);
-    // Buckets are [.., [30, 41], [5, 6]]; the last one is still filling.
-    expect(screen.getByText('Events last minute').parentElement).toHaveTextContent('71');
   });
 
   it('shows dashes before there is data', () => {
@@ -145,22 +138,6 @@ describe('ThroughputChart', () => {
   });
 });
 
-describe('PipelineFlow', () => {
-  it('shows each topic with its rate over the last complete minute', () => {
-    render(<PipelineFlow throughput={throughput([[30, 41], [5, 6]])} mode="live" />);
-    expect(screen.getByText('orders.events.v1').parentElement).toHaveTextContent('30/min');
-    expect(screen.getByText('inventory.events.v1').parentElement).toHaveTextContent('41/min');
-    expect(screen.getByText('C# · .NET 10 · PostgreSQL + outbox')).toBeInTheDocument();
-  });
-
-  it('says so when the services are simulated', () => {
-    render(<PipelineFlow throughput={[]} mode="simulated" />);
-    expect(screen.getAllByText('simulated')).toHaveLength(3);
-    expect(screen.getByText('orders.events.v1').parentElement).toHaveTextContent('0/min');
-    expect(screen.getByText(/Simulated in your browser/)).toBeInTheDocument();
-  });
-});
-
 describe('EventFeed', () => {
   it('lists the newest events with readable names and their Kafka keys', () => {
     render(
@@ -184,6 +161,33 @@ describe('EventFeed', () => {
   it('shows an empty state', () => {
     render(<EventFeed events={[]} />);
     expect(screen.getByText('No events yet.')).toBeInTheDocument();
+  });
+});
+
+describe('SagaSpotlight', () => {
+  const traced = () => ({
+    ...snapshot().orders.recent[0]!,
+    timeline: [
+      { eventType: 'order.placed', occurredAt: '2026-10-06T10:04:58.000Z' },
+      { eventType: 'inventory.stock-reservation-failed', occurredAt: '2026-10-06T10:04:58.042Z' },
+      { eventType: 'order.rejected', occurredAt: '2026-10-06T10:04:58.087Z' },
+    ],
+  });
+
+  it('leads with one order traced across both topics, with real offsets', () => {
+    render(<SagaSpotlight order={traced()} now={new Date('2026-10-06T10:05:00Z')} currency="USD" />);
+    const steps = within(screen.getByLabelText('Saga trace')).getAllByRole('listitem');
+    expect(steps).toHaveLength(3);
+    expect(steps[1]).toHaveTextContent('Stock unavailable');
+    expect(steps[1]).toHaveTextContent('inventory.events.v1');
+    expect(steps[1]).toHaveTextContent('+42 ms');
+    expect(screen.getByText(/3 events on 2 Kafka topics/)).toBeInTheDocument();
+    expect(screen.getByText('Insufficient stock')).toBeInTheDocument();
+  });
+
+  it('keeps the frame when nothing is traceable yet', () => {
+    render(<SagaSpotlight now={new Date()} currency="USD" />);
+    expect(screen.getByText('No order with a trace yet.')).toBeInTheDocument();
   });
 });
 

@@ -4,7 +4,7 @@ import { EventFeed } from './components/EventFeed';
 import { KpiTiles } from './components/KpiTiles';
 import { LowStockTable } from './components/LowStockTable';
 import { RecentOrders } from './components/RecentOrders';
-import { PipelineFlow } from './components/PipelineFlow';
+import { SagaSpotlight } from './components/SagaSpotlight';
 import { StatusBars } from './components/StatusBars';
 import { ThroughputChart } from './components/ThroughputChart';
 import type { DataMode, ModeStore } from './hooks/fallback-source';
@@ -26,6 +26,7 @@ export function App({
 }) {
   const { snapshot, connection, receivedAt } = useLiveSnapshot(streamUrl, createEventSource);
   const now = useNow(5_000);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const reported = useSyncExternalStore(
     (modeStore ?? ALWAYS_LIVE).subscribe,
     (modeStore ?? ALWAYS_LIVE).get,
@@ -33,81 +34,119 @@ export function App({
   const mode: DataMode = demo ? 'simulated' : reported;
   const fellBack = !!modeStore && reported === 'simulated';
 
+  const recent = snapshot?.orders.recent ?? [];
+  const traceable = recent.filter((o) => o.timeline?.length);
+  const traced = traceable.find((o) => o.orderId === selectedId) ?? traceable[0];
+
   return (
-    <div className="page">
-      <header className="top">
-        <div>
-          <h1>Orderflow Live</h1>
-          <p className="sub">
-            {mode === 'simulated'
-              ? 'Orders and inventory, simulated live in your browser'
-              : 'Orders and inventory, straight from Kafka'}
-          </p>
-        </div>
-        <div className="top-right">
-          <ConnectionBadge connection={connection} caughtUp={snapshot?.caughtUp ?? null} />
-          {receivedAt && <span className="sub">Updated {formatAgo(receivedAt.toISOString(), now)}</span>}
-        </div>
-      </header>
-
-      {modeStore && reported === 'live' && (
-        <p className="notice live-notice">
-          Live. Every number on this page comes from the C# order and inventory services, through
-          Kafka, on free-tier cloud hosting. Open an order below to trace its saga.{' '}
-          <a href="https://github.com/developer-az/logos">Source and architecture</a>
-        </p>
-      )}
-
-      {fellBack && (
-        <p className="notice demo-notice">
-          The live backend can't be reached right now, so this is the project's simulator running
-          in your browser, through the same contract validation and read model as production.{' '}
-          <a href="https://github.com/developer-az/logos">Source and architecture</a>
-        </p>
-      )}
-
-      {demo && (
-        <p className="notice demo-notice">
-          Public demo. The events are generated in your browser by the project's simulator and run
-          through the same contract validation and read model as production. The real deployment
-          reads them from Kafka, fed by the C# order and inventory services on Kubernetes.{' '}
-          <a href="https://github.com/developer-az/logos">Source and architecture</a>
-        </p>
-      )}
-
-      {!snapshot ? (
-        <p className="empty" role="status">
-          Waiting for the first update…
-        </p>
-      ) : (
-        <main>
-          {!snapshot.caughtUp && (
-            <p className="notice" role="status">
-              Replaying event history. Numbers will settle once the dashboard has caught up.
-            </p>
-          )}
-          <KpiTiles snapshot={snapshot} />
-          <div className="grid">
-            <PipelineFlow throughput={snapshot.throughput} mode={mode} />
-            <ThroughputChart points={snapshot.throughput} />
-            <StatusBars byStatus={snapshot.orders.byStatus} />
-            <LowStockTable
-              items={snapshot.inventory.lowStock}
-              threshold={snapshot.inventory.lowStockThreshold}
-              skus={snapshot.inventory.skus}
-            />
-            <RecentOrders orders={snapshot.orders.recent} now={now} currency={snapshot.currency} />
-            <EventFeed events={snapshot.recentEvents} />
+    <div className="app">
+      <div className="topbar">
+        <div className="topbar-inner">
+          <a className="brand" href="https://github.com/developer-az/logos">
+            <BrandMark />
+            <span>Orderflow</span>
+          </a>
+          <span className="brand-scope">Order &amp; inventory events</span>
+          <div className="topbar-right">
+            <ConnectionBadge connection={connection} caughtUp={snapshot?.caughtUp ?? null} />
+            {receivedAt && <span className="freshness">Updated {formatAgo(receivedAt.toISOString(), now)}</span>}
           </div>
-          <footer className="consumer" aria-label="Consumer health">
-            {formatCount(snapshot.consumer.processed)} events applied ·{' '}
-            {formatCount(snapshot.consumer.duplicates)} duplicates ignored ·{' '}
-            {formatCount(snapshot.consumer.invalid)} invalid {mode === 'simulated' ? 'rejected' : 'dead-lettered'} ·{' '}
-            {formatCount(snapshot.consumer.unsupported)} unknown types skipped
-          </footer>
-        </main>
-      )}
+        </div>
+      </div>
+
+      <main className="page">
+        <div className="title-row">
+          <div>
+            <h1>Orderflow Live</h1>
+            <p className="sub">
+              {mode === 'simulated'
+                ? 'Orders and inventory, simulated live in your browser'
+                : 'Orders and inventory, straight from Kafka'}
+            </p>
+          </div>
+        </div>
+
+        {modeStore && reported === 'live' && (
+          <p className="notice live-notice">
+            Live. Every number here comes from the C# services through Kafka. Open an order to trace its saga.{' '}
+            <a href="https://github.com/developer-az/logos">Source and architecture</a>
+          </p>
+        )}
+
+        {fellBack && (
+          <p className="notice demo-notice">
+            The live backend can't be reached, so this is the browser simulator running the same contracts and read
+            model as production. <a href="https://github.com/developer-az/logos">Source and architecture</a>
+          </p>
+        )}
+
+        {demo && (
+          <p className="notice demo-notice">
+            Public demo. Events are generated in your browser through the same contracts and read model as the Kafka
+            deployment. <a href="https://github.com/developer-az/logos">Source and architecture</a>
+          </p>
+        )}
+
+        {!snapshot ? (
+          <p className="empty" role="status">
+            Waiting for the first update…
+          </p>
+        ) : (
+          <>
+            {!snapshot.caughtUp && (
+              <p className="notice" role="status">
+                Replaying event history. Numbers will settle once the dashboard has caught up.
+              </p>
+            )}
+
+            <p className="consumer" aria-label="Consumer health">
+              {formatCount(snapshot.consumer.processed)} events applied ·{' '}
+              {formatCount(snapshot.consumer.duplicates)} duplicates ignored ·{' '}
+              {formatCount(snapshot.consumer.invalid)} invalid {mode === 'simulated' ? 'rejected' : 'dead-lettered'} ·{' '}
+              {formatCount(snapshot.consumer.unsupported)} unknown types skipped
+            </p>
+
+            <KpiTiles snapshot={snapshot} />
+
+            <div className="workbench">
+              <SagaSpotlight order={traced} now={now} currency={snapshot.currency} />
+              <ThroughputChart points={snapshot.throughput} />
+              <div className="stack span-4">
+                <StatusBars byStatus={snapshot.orders.byStatus} />
+                <LowStockTable
+                  items={snapshot.inventory.lowStock}
+                  threshold={snapshot.inventory.lowStockThreshold}
+                  skus={snapshot.inventory.skus}
+                />
+              </div>
+              <RecentOrders
+                orders={recent}
+                now={now}
+                currency={snapshot.currency}
+                selectedId={traced?.orderId}
+                onSelect={setSelectedId}
+              />
+              <details className="card span-12 raw-stream">
+                <summary>Event stream · {formatCount(snapshot.recentEvents.length)} recent events</summary>
+                <EventFeed events={snapshot.recentEvents} />
+              </details>
+            </div>
+          </>
+        )}
+      </main>
     </div>
+  );
+}
+
+/** The product's mark: the two topics, the hand-off between services, one read model. */
+function BrandMark() {
+  return (
+    <svg className="brand-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M1.5 7h21M1.5 17h21" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="6.5" cy="7" r="2.6" fill="var(--orders)" />
+      <circle cx="17.5" cy="17" r="2.6" fill="var(--inventory)" />
+      <path d="M6.5 9.6v4.8h11" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
   );
 }
 

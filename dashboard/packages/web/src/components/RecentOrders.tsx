@@ -10,15 +10,48 @@ const STATUS_TEXT: Record<OrderView['status'], string> = {
   cancelled: 'Cancelled',
 };
 
-/** Recent orders; selecting one shows its saga, step by step, across both topics. */
-export function RecentOrders({ orders, now, currency }: { orders: OrderView[]; now: Date; currency: string }) {
+const PREVIEW = 6;
+
+/**
+ * Recent orders. On the dashboard, selecting one drives the SagaSpotlight above; on its own,
+ * selecting one expands its trace inline. Either way the row has one obvious purpose.
+ */
+export function RecentOrders({
+  orders,
+  now,
+  currency,
+  selectedId,
+  onSelect,
+}: {
+  orders: OrderView[];
+  now: Date;
+  currency: string;
+  selectedId?: string;
+  onSelect?: (orderId: string) => void;
+}) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const selectable = !!onSelect;
   const traceable = orders.some((o) => o.timeline?.length);
+  const shown = showAll ? orders : orders.slice(0, PREVIEW);
 
   return (
-    <section className="card wide" aria-labelledby="orders-title">
-      <h2 id="orders-title">Recent orders</h2>
-      {traceable && <p className="card-hint">Select an order to trace its saga through Kafka.</p>}
+    <section className="card span-12" aria-labelledby="orders-title">
+      <div className="panel-head">
+        <div>
+          <h2 id="orders-title">Recent orders</h2>
+          {traceable && (
+            <p className="card-hint">
+              {selectable ? 'Select an order to trace it above.' : 'Select an order to trace its saga through Kafka.'}
+            </p>
+          )}
+        </div>
+        {orders.length > PREVIEW && (
+          <button type="button" className="quiet-button" onClick={() => setShowAll(!showAll)}>
+            {showAll ? `Show ${PREVIEW}` : `All ${orders.length}`}
+          </button>
+        )}
+      </div>
       {orders.length === 0 ? (
         <p className="empty">No orders yet.</p>
       ) : (
@@ -33,21 +66,23 @@ export function RecentOrders({ orders, now, currency }: { orders: OrderView[]; n
             </tr>
           </thead>
           <tbody>
-            {orders.map((o) => {
-              const open = openId === o.orderId && !!o.timeline?.length;
+            {shown.map((o) => {
+              const open = !selectable && openId === o.orderId && !!o.timeline?.length;
+              const selected = selectable && selectedId === o.orderId;
               return (
                 <Fragment key={o.orderId}>
-                  <tr className={open ? 'row-open' : undefined}>
+                  <tr className={open ? 'row-open' : undefined} data-selected={selectable ? selected : undefined}>
                     <td className="mono" title={o.orderId}>
                       {o.timeline?.length ? (
                         <button
                           type="button"
-                          className="trace-toggle"
-                          aria-expanded={open}
-                          aria-controls={`trace-${o.orderId}`}
-                          onClick={() => setOpenId(open ? null : o.orderId)}
+                          className={`trace-toggle${selected ? ' is-selected' : ''}`}
+                          aria-expanded={selectable ? undefined : open}
+                          aria-pressed={selectable ? selected : undefined}
+                          aria-controls={selectable ? undefined : `trace-${o.orderId}`}
+                          onClick={() => (selectable ? onSelect!(o.orderId) : setOpenId(open ? null : o.orderId))}
                         >
-                          <span aria-hidden="true">{open ? '▾' : '▸'}</span> {shortId(o.orderId)}
+                          {shortId(o.orderId)}
                         </button>
                       ) : (
                         shortId(o.orderId)
@@ -80,7 +115,7 @@ export function RecentOrders({ orders, now, currency }: { orders: OrderView[]; n
   );
 }
 
-/** One order's events in order, each with its offset from the first and the topic it crossed. */
+/** Compact inline trace used when the component stands alone. */
 export function SagaTrace({ steps }: { steps: TimelineEntry[] }) {
   const start = Date.parse(steps[0]!.occurredAt);
   return (
