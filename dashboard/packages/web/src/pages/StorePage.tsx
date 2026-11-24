@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { cartCount, type Cart } from '../lib/cart';
+import { productName } from '../lib/catalogue';
 import type { CatalogItem } from '../lib/commerce';
 import { formatMoney } from '../lib/format';
 
@@ -23,8 +24,11 @@ export function StorePage({
     <>
       <div className="title-row">
         <div>
-          <h1>Store</h1>
-          <p className="sub">Order from the same catalogue the control tower watches.</p>
+          <h1>Orderflow</h1>
+          <p className="sub">
+            Place an order and trace it across Kafka, restock the SKU it could not fill, and
+            reconcile the money. Every step is an event.
+          </p>
         </div>
         <a className="quiet-button cart-link" href="#/cart">
           Cart · {items} {items === 1 ? 'item' : 'items'}
@@ -44,7 +48,7 @@ export function StorePage({
           <table className="stack-table">
             <thead>
               <tr>
-                <th>SKU</th>
+                <th>Product</th>
                 <th className="num">Unit price</th>
                 <th className="num">Available</th>
                 <th>Quantity</th>
@@ -56,7 +60,10 @@ export function StorePage({
                 const quantity = quantities[item.sku] ?? 1;
                 return (
                   <tr key={item.sku}>
-                    <td className="mono stack-sku">{item.sku}</td>
+                    <td className="stack-sku">
+                      <span className="product-name">{productName(item.sku)}</span>
+                      <span className="mono product-sku">{item.sku}</span>
+                    </td>
                     <td className="num" data-label="Unit price">
                       {formatMoney(Math.round(item.unitPrice * 100), currency)}
                     </td>

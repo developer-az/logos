@@ -42,6 +42,23 @@ export function snapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardS
         { sku: 'SKU-0007', onHand: 10, reserved: 7, available: 3, version: 4, updatedAt: '2026-10-06T10:03:00Z', lowStock: true },
       ],
     },
+    procurement: {
+      quotes: [
+        { quoteId: 'SKU-0003-northwind', sku: 'SKU-0003', supplierId: 'northwind', supplierName: 'Northwind Supply', unitCostCents: 960, leadTimeDays: 3, moq: 6, onTimeRate: 0.97, receivedAt: '2026-10-06T10:00:00Z' },
+        { quoteId: 'SKU-0003-vertex', sku: 'SKU-0003', supplierId: 'vertex', supplierName: 'Vertex Components', unitCostCents: 880, leadTimeDays: 6, moq: 12, onTimeRate: 0.91, receivedAt: '2026-10-06T10:00:00Z' },
+        { quoteId: 'SKU-0003-kiloparts', sku: 'SKU-0003', supplierId: 'kiloparts', supplierName: 'Kilo Parts', unitCostCents: 1040, leadTimeDays: 1, moq: 3, onTimeRate: 0.86, receivedAt: '2026-10-06T10:00:00Z' },
+      ],
+      purchaseOrders: [],
+    },
+    finance: {
+      capturedCents: 1_234_567,
+      refundedCents: 0,
+      cogsCents: 800_000,
+      marginCents: 434_567,
+      reconciles: true,
+      ledger: [],
+    },
+    deadLetters: [],
     throughput: throughput([
       [10, 20],
       [12, 25],

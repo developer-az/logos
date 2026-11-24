@@ -4,6 +4,10 @@ export type Route =
   | { name: 'store' }
   | { name: 'cart' }
   | { name: 'ops' }
+  | { name: 'sourcing' }
+  | { name: 'finance' }
+  | { name: 'incidents' }
+  | { name: 'about' }
   | { name: 'order'; orderId: string };
 
 /**
@@ -16,6 +20,10 @@ export function parseHash(hash: string): Route {
   if (path === '/') return { name: 'store' };
   if (path === '/cart') return { name: 'cart' };
   if (path === '/ops') return { name: 'ops' };
+  if (path === '/sourcing') return { name: 'sourcing' };
+  if (path === '/finance') return { name: 'finance' };
+  if (path === '/incidents') return { name: 'incidents' };
+  if (path === '/about') return { name: 'about' };
   const order = /^\/orders\/([^/]+)$/.exec(path);
   if (order) return { name: 'order', orderId: decodeURIComponent(order[1]!) };
   return { name: 'store' };

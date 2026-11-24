@@ -1,8 +1,24 @@
 # Orderflow Live (dashboard)
 
-A live dashboard for the order and inventory platform. A Node service consumes the services'
-Kafka events, folds them into an in-memory read model, and pushes snapshots to a React page over
-Server-Sent Events. Tested with Jest, including against a real Kafka broker.
+The public face of the order and inventory platform: a storefront, a sourcing page, a finance
+ledger, an incidents lab and the live control tower. A Node service consumes the services' Kafka
+events, folds them into an in-memory read model, and pushes snapshots to a React app over
+Server-Sent Events. The public build runs the same contracts, projection and simulator in the
+browser, so the demo works with no backend. Tested with Jest, including against a real Kafka
+broker.
+
+| Route | What it does | Backed by |
+|---|---|---|
+| `#/` | Store: catalogue, cart, checkout | Simulator (demo) |
+| `#/sourcing` | Supplier comparison, purchase orders, goods receipt | Simulated procurement events |
+| `#/finance` | Captures, refunds, cost of goods, reconciliation | Simulated finance events |
+| `#/incidents` | Duplicate, malformed and replayed messages | The projection's real counters |
+| `#/ops` | Live orders, stock, throughput, one order's saga | Kafka through the API |
+| `#/about` | What is real, what breaks, and why | Static |
+
+Orders, inventory, procurement and finance are four topics. The C# services produce the first
+two; procurement and finance are produced by the simulator and folded by the same projection, so
+the second and third sagas are real event flows, not mock data. The About page says so explicitly.
 
 ![Dashboard](docs/dashboard-desktop.png)
 
@@ -10,7 +26,7 @@ Server-Sent Events. Tested with Jest, including against a real Kafka broker.
 |---|---|
 | `packages/contracts` | Zod schemas for the events in [services/docs/events.md](../services/docs/events.md), plus the dashboard's own DTOs |
 | `packages/api` | Kafka consumer, read model, HTTP + SSE API (Fastify), event simulator |
-| `packages/web` | React dashboard (Vite), served by the API in production |
+| `packages/web` | React app (Vite), served by the API in production |
 
 ## Run it
 

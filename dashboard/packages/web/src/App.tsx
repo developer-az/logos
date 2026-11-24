@@ -6,9 +6,13 @@ import { useLiveSnapshot, type EventSourceFactory } from './hooks/useLiveSnapsho
 import { cartCount, loadCart, saveCart, withQuantity, type Cart } from './lib/cart';
 import { unavailableActions, type CommerceActions } from './lib/commerce';
 import { formatAgo } from './lib/format';
+import { AboutPage } from './pages/AboutPage';
 import { CartPage } from './pages/CartPage';
 import { ControlTower } from './pages/ControlTower';
+import { FinancePage } from './pages/FinancePage';
+import { IncidentsPage } from './pages/IncidentsPage';
 import { OrderPage } from './pages/OrderPage';
+import { SourcingPage } from './pages/SourcingPage';
 import { StorePage } from './pages/StorePage';
 
 export function App({
@@ -39,7 +43,8 @@ export function App({
   const mode: DataMode = demo ? 'simulated' : reported;
   const fellBack = !!modeStore && reported === 'simulated';
   const commerce = actions ?? unavailableActions;
-  const shopping = route.name === 'store' || route.name === 'cart';
+  const shopping =
+    route.name === 'store' || route.name === 'cart' || route.name === 'sourcing';
   const catalog = shopping ? commerce.catalog() : [];
   const currency = snapshot?.currency ?? 'USD';
   const items = cartCount(cart);
@@ -67,11 +72,23 @@ export function App({
             <a className="nav-link" href="#/" aria-current={route.name === 'store' ? 'page' : undefined}>
               Store
             </a>
-            <a className="nav-link" href="#/cart" aria-current={route.name === 'cart' ? 'page' : undefined}>
-              Cart{items > 0 ? ` (${items})` : ''}
+            <a className="nav-link" href="#/sourcing" aria-current={route.name === 'sourcing' ? 'page' : undefined}>
+              Sourcing
+            </a>
+            <a className="nav-link" href="#/finance" aria-current={route.name === 'finance' ? 'page' : undefined}>
+              Finance
+            </a>
+            <a className="nav-link" href="#/incidents" aria-current={route.name === 'incidents' ? 'page' : undefined}>
+              Incidents
             </a>
             <a className="nav-link" href="#/ops" aria-current={route.name === 'ops' ? 'page' : undefined}>
               Control tower
+            </a>
+            <a className="nav-link" href="#/about" aria-current={route.name === 'about' ? 'page' : undefined}>
+              About
+            </a>
+            <a className="nav-link nav-cart" href="#/cart" aria-current={route.name === 'cart' ? 'page' : undefined}>
+              Cart{items > 0 ? ` (${items})` : ''}
             </a>
           </nav>
           <div className="topbar-right">
@@ -101,6 +118,22 @@ export function App({
             onAdd={addToCart}
           />
         )}
+        {route.name === 'sourcing' && (
+          <SourcingPage
+            snapshot={snapshot}
+            catalog={catalog}
+            now={now}
+            currency={currency}
+            actions={commerce}
+          />
+        )}
+        {route.name === 'finance' && (
+          <FinancePage snapshot={snapshot} now={now} currency={currency} />
+        )}
+        {route.name === 'incidents' && (
+          <IncidentsPage snapshot={snapshot} actions={commerce} now={now} />
+        )}
+        {route.name === 'about' && <AboutPage />}
         {route.name === 'cart' && (
           <CartPage
             cart={cart}

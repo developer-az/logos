@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Cart } from '../lib/cart';
+import { productName } from '../lib/catalogue';
 import type { CatalogItem, CommerceActions } from '../lib/commerce';
 import { formatMoney } from '../lib/format';
 
@@ -75,7 +76,10 @@ export function CartPage({
                 .slice(0, 3)
                 .map((item) => (
                   <li key={item.sku}>
-                    <span className="mono">{item.sku}</span>
+                    <span>
+                      <span className="product-name">{productName(item.sku)}</span>
+                      <span className="mono product-sku">{item.sku}</span>
+                    </span>
                     <span className="quiet-price">
                       {formatMoney(Math.round(item.unitPrice * 100), currency)}
                     </span>
@@ -94,7 +98,7 @@ export function CartPage({
             <table className="stack-table">
               <thead>
                 <tr>
-                  <th>SKU</th>
+                  <th>Product</th>
                   <th className="num">Unit price</th>
                   <th>Quantity</th>
                   <th className="num">Line total</th>
@@ -104,7 +108,10 @@ export function CartPage({
               <tbody>
                 {lines.map((line) => (
                   <tr key={line.sku}>
-                    <td className="mono stack-sku">{line.sku}</td>
+                    <td className="stack-sku">
+                      <span className="product-name">{productName(line.sku)}</span>
+                      <span className="mono product-sku">{line.sku}</span>
+                    </td>
                     <td className="num" data-label="Unit price">
                       {line.item ? formatMoney(Math.round(line.item.unitPrice * 100), currency) : '—'}
                     </td>

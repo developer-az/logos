@@ -10,7 +10,7 @@ import { App } from './App';
 import { createDemoRuntime } from './demo/demo-stream';
 import { createFallbackEventSourceFactory } from './hooks/fallback-source';
 import type { EventSourceFactory, EventSourceLike } from './hooks/useLiveSnapshot';
-import { LIVE_ORDERING_UNAVAILABLE, type CommerceActions } from './lib/commerce';
+import { LIVE_WRITES_UNAVAILABLE, type CommerceActions } from './lib/commerce';
 import './styles.css';
 
 // Public build (npm run build:demo, what Vercel runs). With VITE_API_URL set, the page reads the
@@ -33,16 +33,20 @@ if (publicBuild && apiUrl) {
   streamUrl = `${apiUrl}/api/stream`;
   createEventSource = fallback.factory;
   mode = fallback.mode;
-  // Orders only flow through the simulator; on a live backend there is no write API to call.
+  // Writes only flow through the simulator; a live backend has no write API to call.
+  const simulated = () => fallback.mode.get() === 'simulated';
+  const refused = (): { ok: false; error: string } => ({ ok: false, error: LIVE_WRITES_UNAVAILABLE });
   actions = {
     get unavailableReason() {
-      return fallback.mode.get() === 'simulated' ? undefined : LIVE_ORDERING_UNAVAILABLE;
+      return simulated() ? undefined : LIVE_WRITES_UNAVAILABLE;
     },
-    catalog: () => (fallback.mode.get() === 'simulated' ? demo.actions.catalog() : []),
-    placeOrder: (lines) =>
-      fallback.mode.get() === 'simulated'
-        ? demo.actions.placeOrder(lines)
-        : { ok: false, error: LIVE_ORDERING_UNAVAILABLE },
+    catalog: () => (simulated() ? demo.actions.catalog() : []),
+    placeOrder: (lines) => (simulated() ? demo.actions.placeOrder(lines) : refused()),
+    placePurchaseOrder: (sku, supplierId, quantity) =>
+      simulated() ? demo.actions.placePurchaseOrder(sku, supplierId, quantity) : refused(),
+    sendDuplicate: () => (simulated() ? demo.actions.sendDuplicate() : refused()),
+    sendMalformed: () => (simulated() ? demo.actions.sendMalformed() : refused()),
+    replayDeadLetter: () => (simulated() ? demo.actions.replayDeadLetter() : refused()),
   };
 } else if (publicBuild) {
   const demo = createDemoRuntime();
