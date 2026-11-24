@@ -98,16 +98,42 @@ export class OrderFlowSimulator {
     return this.skus.map((s) => this.levelChanged(s, at, correlationId, null));
   }
 
+  /** The catalogue the simulator sells from, with the prices its events carry. */
+  catalog(): Array<{ sku: string; unitPrice: number }> {
+    return this.skus.map((s) => ({ sku: s.sku, unitPrice: s.unitPrice }));
+  }
+
   /** Places a new order now and schedules the rest of its saga. */
   placeOrder(at: number): Envelope[] {
-    const orderId = this.uuid();
-    const correlationId = this.uuid();
     const lineCount = 1 + Math.floor(this.rand() * 3);
     const picked = new Map<Sku, number>();
     for (let i = 0; i < lineCount; i++) {
       const s = this.skus[Math.floor(this.rand() * this.skus.length)]!;
       picked.set(s, (picked.get(s) ?? 0) + 1 + Math.floor(this.rand() * 3));
     }
+    return this.placePicked(at, picked);
+  }
+
+  /** Places an order for explicit lines, with the same reservation saga as a simulated order. */
+  placeOrderLines(
+    at: number,
+    requested: Array<{ sku: string; quantity: number }>,
+  ): { orderId: string; envelopes: Envelope[] } {
+    const picked = new Map<Sku, number>();
+    for (const line of requested) {
+      const s = this.skus.find((c) => c.sku === line.sku);
+      if (!s) throw new Error(`Unknown SKU: ${line.sku}`);
+      if (!Number.isInteger(line.quantity) || line.quantity <= 0) {
+        throw new Error('Quantity must be a positive integer');
+      }
+      picked.set(s, (picked.get(s) ?? 0) + line.quantity);
+    }
+    const orderId = this.uuid();
+    return { orderId, envelopes: this.placePicked(at, picked, orderId) };
+  }
+
+  private placePicked(at: number, picked: Map<Sku, number>, orderId = this.uuid()): Envelope[] {
+    const correlationId = this.uuid();
     const lines: OrderLine[] = [...picked].map(([s, quantity]) => ({
       sku: s.sku,
       quantity,

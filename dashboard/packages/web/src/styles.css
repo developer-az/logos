@@ -201,6 +201,31 @@ a {
   padding-left: 16px;
 }
 
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
+  padding: 5px 10px;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  color: var(--text);
+}
+
+.nav-link[aria-current='page'] {
+  color: var(--text);
+  font-weight: 600;
+  background: var(--raised);
+}
+
 .topbar-right {
   margin-left: auto;
   display: flex;
@@ -382,6 +407,72 @@ h1 {
 
 .quiet-button:active {
   transform: scale(0.98);
+}
+
+.quiet-button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.cart-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.button {
+  padding: 7px 16px;
+  color: var(--canvas);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.button:disabled {
+  background: var(--disabled);
+  border-color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.qty-input {
+  width: 64px;
+  padding: 5px 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: 13px;
+}
+
+.cart-summary {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.cart-summary strong {
+  font-size: 16px;
+}
+
+.cart-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
 }
 
 .spotlight-head {
@@ -933,6 +1024,18 @@ tbody tr:last-child td {
   .brand-scope,
   .freshness {
     display: none;
+  }
+
+  .topbar-inner {
+    gap: 8px;
+  }
+
+  .nav {
+    gap: 0;
+  }
+
+  .nav-link {
+    padding: 5px 6px;
   }
 
   .page {
