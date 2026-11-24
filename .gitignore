@@ -9,3 +9,5 @@ dist/
 coverage/
 *.tsbuildinfo
 .taste-skill/
+.gemini/
+.openchamber/

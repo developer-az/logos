@@ -10,6 +10,7 @@ export function CartPage({
   actions,
   onChangeQuantity,
   onOrderPlaced,
+  onAdd,
 }: {
   cart: Cart;
   catalog: CatalogItem[];
@@ -17,6 +18,7 @@ export function CartPage({
   actions: CommerceActions;
   onChangeQuantity: (sku: string, quantity: number) => void;
   onOrderPlaced: (orderId: string) => void;
+  onAdd: (sku: string, quantity: number) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const prices = new Map(catalog.map((item) => [item.sku, item]));
@@ -62,10 +64,34 @@ export function CartPage({
       <section className="card" aria-labelledby="cart-title">
         <h2 id="cart-title">Items</h2>
         {empty ? (
-          <p className="empty">Your cart is empty.</p>
+          <div className="empty-cart">
+            <p className="empty">Your cart is empty.</p>
+            {catalog.some((item) => item.available > 0) && (
+              <p className="card-hint">Start with something in stock:</p>
+            )}
+            <ul className="quick-add">
+              {catalog
+                .filter((item) => item.available > 0)
+                .slice(0, 3)
+                .map((item) => (
+                  <li key={item.sku}>
+                    <span className="mono">{item.sku}</span>
+                    <span className="quiet-price">
+                      {formatMoney(Math.round(item.unitPrice * 100), currency)}
+                    </span>
+                    <button type="button" className="quiet-button" onClick={() => onAdd(item.sku, 1)}>
+                      Add
+                    </button>
+                  </li>
+                ))}
+            </ul>
+            <a className="button" href="#/">
+              Browse the store
+            </a>
+          </div>
         ) : (
           <>
-            <table>
+            <table className="stack-table">
               <thead>
                 <tr>
                   <th>SKU</th>
@@ -78,11 +104,11 @@ export function CartPage({
               <tbody>
                 {lines.map((line) => (
                   <tr key={line.sku}>
-                    <td className="mono">{line.sku}</td>
-                    <td className="num">
+                    <td className="mono stack-sku">{line.sku}</td>
+                    <td className="num" data-label="Unit price">
                       {line.item ? formatMoney(Math.round(line.item.unitPrice * 100), currency) : '—'}
                     </td>
-                    <td>
+                    <td data-label="Quantity">
                       <input
                         className="qty-input"
                         type="number"
@@ -98,12 +124,12 @@ export function CartPage({
                         }
                       />
                     </td>
-                    <td className="num">
+                    <td className="num" data-label="Line total">
                       {line.item
                         ? formatMoney(Math.round(line.item.unitPrice * 100) * line.quantity, currency)
                         : '—'}
                     </td>
-                    <td className="num">
+                    <td className="stack-action">
                       <button
                         type="button"
                         className="quiet-button"
@@ -122,16 +148,13 @@ export function CartPage({
             </div>
           </>
         )}
-        <div className="cart-actions">
-          <button
-            type="button"
-            className="button"
-            disabled={empty || !!actions.unavailableReason}
-            onClick={checkout}
-          >
-            Checkout
-          </button>
-        </div>
+        {!empty && (
+          <div className="cart-actions">
+            <button type="button" className="button" disabled={!!actions.unavailableReason} onClick={checkout}>
+              Checkout
+            </button>
+          </div>
+        )}
       </section>
 
       <p className="consumer">

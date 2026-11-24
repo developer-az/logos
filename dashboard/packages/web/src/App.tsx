@@ -108,6 +108,7 @@ export function App({
             currency={currency}
             actions={commerce}
             onChangeQuantity={(sku, quantity) => setCart((current) => withQuantity(current, sku, quantity))}
+            onAdd={addToCart}
             onOrderPlaced={(orderId) => {
               setCart({});
               setPendingOrderId(orderId);

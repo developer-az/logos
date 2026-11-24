@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { DemoPipeline, createDemoRuntime } from '../src/demo/demo-stream';
 import { parseHash } from '../src/hooks/useHashRoute';
 import { App } from '../src/App';
+import { OrderPage } from '../src/pages/OrderPage';
 import { FakeEventSource, snapshot } from './fixtures';
 
 const T0 = Date.parse('2026-10-07T12:00:00Z');
@@ -83,6 +84,29 @@ describe('storefront', () => {
 
     act(() => window.dispatchEvent(new HashChangeEvent('hashchange')));
     expect(screen.getByRole('heading', { name: 'Order' })).toBeInTheDocument();
+  });
+
+  it('keeps a traced order after it leaves the live window', () => {
+    const base = snapshot();
+    const order = {
+      ...base.orders.recent[0]!,
+      timeline: [
+        { eventType: 'order.placed', occurredAt: '2026-10-06T10:04:58.000Z' },
+        { eventType: 'order.confirmed', occurredAt: '2026-10-06T10:04:58.090Z' },
+      ],
+    };
+    const withOrder = { ...base, orders: { ...base.orders, recent: [order] } };
+    const withoutOrder = { ...base, orders: { ...base.orders, recent: [] } };
+
+    const { rerender } = render(
+      <OrderPage orderId={order.orderId} snapshot={withOrder} now={new Date()} currency="USD" />,
+    );
+    rerender(
+      <OrderPage orderId={order.orderId} snapshot={withoutOrder} now={new Date()} currency="USD" />,
+    );
+
+    expect(screen.getByLabelText('Saga trace')).toBeInTheDocument();
+    expect(screen.getByText(/left the live window/i)).toBeInTheDocument();
   });
 
   it('says checkout is not available when there is no action backend', () => {

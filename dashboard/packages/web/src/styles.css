@@ -15,7 +15,7 @@
   --rule: #e6ecf3;
   --text: #0b3558;
   --muted: #476788;
-  --disabled: #a6bbd1;
+  --disabled: #64707e;
   --accent: #0b3558;
   --link: #004eba;
 
@@ -55,7 +55,7 @@
     --rule: #212831;
     --text: #f2f5f9;
     --muted: #a8b4c4;
-    --disabled: #6e7b8b;
+    --disabled: #7d8a9b;
     --accent: #eef2f7;
     --link: #8db8ff;
     --orders: #79adff;
@@ -78,7 +78,7 @@
   --rule: #212831;
   --text: #f2f5f9;
   --muted: #a8b4c4;
-  --disabled: #6e7b8b;
+  --disabled: #7d8a9b;
   --accent: #eef2f7;
   --link: #8db8ff;
   --orders: #79adff;
@@ -411,6 +411,7 @@ h1 {
 
 .quiet-button:disabled {
   color: var(--disabled);
+  border-style: dashed;
   cursor: not-allowed;
 }
 
@@ -418,6 +419,10 @@ h1 {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
+  white-space: nowrap;
+}
+
+.title-row .quiet-button {
   white-space: nowrap;
 }
 
@@ -441,6 +446,10 @@ h1 {
   background: var(--disabled);
   border-color: var(--disabled);
   cursor: not-allowed;
+}
+
+.stack-action {
+  text-align: right;
 }
 
 .qty-input {
@@ -473,6 +482,89 @@ h1 {
   display: flex;
   justify-content: flex-end;
   margin-top: 14px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px 16px;
+  margin: 14px 0 0;
+  font-size: 13px;
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.facts-note {
+  margin-top: 16px;
+}
+
+.facts-link {
+  display: inline-block;
+  margin-top: 2px;
+  text-decoration: none;
+}
+
+.workbench-top {
+  align-items: start;
+}
+
+.empty-card {
+  max-width: 640px;
+}
+
+.empty-card h2 {
+  margin: 0;
+}
+
+.empty-action {
+  display: inline-block;
+  margin-top: 16px;
+  text-decoration: none;
+}
+
+.empty-cart .empty {
+  margin-bottom: 6px;
+}
+
+.empty-cart .button {
+  display: inline-block;
+  margin-top: 4px;
+  text-decoration: none;
+}
+
+.quick-add {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+  max-width: 460px;
+}
+
+.quick-add li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.quick-add li:last-child {
+  border-bottom: 0;
+}
+
+.quiet-price {
+  color: var(--muted);
 }
 
 .spotlight-head {
@@ -1061,6 +1153,60 @@ tbody tr:last-child td {
 
   .trace-step::after {
     display: none;
+  }
+
+  /* The catalogue becomes a list of cards; the table header would only repeat labels. */
+  .stack-table,
+  .stack-table tbody,
+  .stack-table tr,
+  .stack-table td {
+    display: block;
+  }
+
+  .stack-table thead {
+    display: none;
+  }
+
+  .stack-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stack-table tr:last-child {
+    border-bottom: 0;
+  }
+
+  .stack-table td {
+    padding: 0;
+    border: 0;
+    text-align: left;
+  }
+
+  .stack-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .stack-table .stack-sku {
+    grid-column: 1 / -1;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .stack-table .stack-action {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .stack-table .quiet-button,
+  .stack-table .button {
+    width: 100%;
+    padding: 7px 10px;
   }
 }
 

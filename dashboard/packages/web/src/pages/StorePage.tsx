@@ -41,7 +41,7 @@ export function StorePage({
         {catalog.length === 0 ? (
           <p className="empty">No stock is being reported.</p>
         ) : (
-          <table>
+          <table className="stack-table">
             <thead>
               <tr>
                 <th>SKU</th>
@@ -56,10 +56,14 @@ export function StorePage({
                 const quantity = quantities[item.sku] ?? 1;
                 return (
                   <tr key={item.sku}>
-                    <td className="mono">{item.sku}</td>
-                    <td className="num">{formatMoney(Math.round(item.unitPrice * 100), currency)}</td>
-                    <td className="num">{item.available}</td>
-                    <td>
+                    <td className="mono stack-sku">{item.sku}</td>
+                    <td className="num" data-label="Unit price">
+                      {formatMoney(Math.round(item.unitPrice * 100), currency)}
+                    </td>
+                    <td className="num" data-label="Available">
+                      {item.available}
+                    </td>
+                    <td data-label="Quantity">
                       <input
                         className="qty-input"
                         type="number"
@@ -75,7 +79,7 @@ export function StorePage({
                         }
                       />
                     </td>
-                    <td className="num">
+                    <td className="stack-action">
                       <button
                         type="button"
                         className="quiet-button"

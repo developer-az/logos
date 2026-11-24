@@ -18,14 +18,17 @@ export function SagaSpotlight({
   order,
   now,
   currency,
+  span = 'span-12',
 }: {
   order?: OrderView;
   now: Date;
   currency: string;
+  /** Grid span when placed inside the workbench; defaults to the full row. */
+  span?: string;
 }) {
   if (!order?.timeline?.length) {
     return (
-      <section className="card span-12 spotlight" aria-labelledby="spotlight-title">
+      <section className={`card ${span} spotlight`} aria-labelledby="spotlight-title">
         <h2 id="spotlight-title">Trace one order</h2>
         <p className="empty">No order with a trace yet.</p>
       </section>
@@ -39,7 +42,7 @@ export function SagaSpotlight({
   const last = steps[steps.length - 1]!;
 
   return (
-    <section className="card span-12 spotlight" aria-labelledby="spotlight-title">
+    <section className={`card ${span} spotlight`} aria-labelledby="spotlight-title">
       <div className="spotlight-head">
         <div>
           <h2 id="spotlight-title">Trace one order</h2>
