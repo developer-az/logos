@@ -3,11 +3,15 @@ import {
   partitionKeyOf,
   toCents,
   type DashboardSnapshot,
+  type DeadLetter,
   type DomainEvent,
   type InventoryView,
+  type LedgerEntry,
   type OrderStatus,
   type OrderView,
+  type PurchaseOrderView,
   type RecentEvent,
+  type SupplierQuote,
   type ThroughputPoint,
   type TimelineEntry,
 } from '@orderflow/contracts';
@@ -74,6 +78,14 @@ export class Projection {
   private readonly recent: RecentEvent[] = [];
   /** Saga timelines of the most recently touched orders; insertion-ordered, oldest first. */
   private readonly timelines = new Map<string, TimelineEntry[]>();
+  private readonly quotes = new Map<string, SupplierQuote>();
+  private readonly purchaseOrders = new Map<string, PurchaseOrderView>();
+  private readonly ledger: LedgerEntry[] = [];
+  private readonly deadLetters: DeadLetter[] = [];
+  private capturedCents = 0;
+  private refundedCents = 0;
+  private cogsCapturedCents = 0;
+  private cogsRefundedCents = 0;
   private revenueCents = 0;
   private accepted = 0;
   private rejected = 0;
@@ -123,6 +135,8 @@ export class Projection {
     // Normalize to UTC so timestamps with different offsets compare correctly as strings.
     const at = new Date(event.occurredAt).toISOString();
     this.lastEventAt = at;
+    /** Set when this event is a step of an order's saga. */
+    let stepOrderId: string | null = null;
 
     switch (event.eventType) {
       case 'order.placed': {
@@ -135,16 +149,20 @@ export class Projection {
         // The decision may have been seen first if we started mid-stream; count it now.
         if (order.decidedAt) this.recordLatency(order);
         if (order.status === 'confirmed') this.revenueCents += order.totalCents;
+        stepOrderId = p.orderId;
         break;
       }
       case 'order.confirmed':
         this.transition(event.payload.orderId, 'confirmed', at, null);
+        stepOrderId = event.payload.orderId;
         break;
       case 'order.rejected':
         this.transition(event.payload.orderId, 'rejected', at, event.payload.reason);
+        stepOrderId = event.payload.orderId;
         break;
       case 'order.cancelled':
         this.transition(event.payload.orderId, 'cancelled', at, event.payload.reason ?? null);
+        stepOrderId = event.payload.orderId;
         break;
       case 'inventory.stock-level-changed': {
         const s = event.payload;
@@ -168,12 +186,66 @@ export class Projection {
       case 'inventory.stock-reservation-failed':
       case 'inventory.stock-released':
         // Stock effects arrive as inventory.stock-level-changed; these only count as traffic.
+        stepOrderId = event.payload.orderId;
         break;
+      case 'procurement.quote-received': {
+        const q = event.payload;
+        this.quotes.set(`${q.sku}|${q.supplierId}`, {
+          quoteId: q.quoteId,
+          sku: q.sku,
+          supplierId: q.supplierId,
+          supplierName: q.supplierName,
+          unitCostCents: q.unitCostCents,
+          leadTimeDays: q.leadTimeDays,
+          moq: q.moq,
+          onTimeRate: q.onTimeRate,
+          receivedAt: at,
+        });
+        break;
+      }
+      case 'procurement.purchase-order-placed': {
+        const p = event.payload;
+        this.purchaseOrders.set(p.purchaseOrderId, {
+          purchaseOrderId: p.purchaseOrderId,
+          sku: p.sku,
+          supplierId: p.supplierId,
+          supplierName: p.supplierName,
+          quantity: p.quantity,
+          unitCostCents: p.unitCostCents,
+          totalCents: p.unitCostCents * p.quantity,
+          leadTimeDays: p.leadTimeDays,
+          placedAt: at,
+          status: 'in-transit',
+          receivedAt: null,
+        });
+        break;
+      }
+      case 'procurement.goods-received': {
+        const p = event.payload;
+        const po = this.purchaseOrders.get(p.purchaseOrderId);
+        if (po) {
+          po.status = 'received';
+          po.receivedAt = at;
+        }
+        break;
+      }
+      case 'finance.payment-captured': {
+        const p = event.payload;
+        this.capturedCents += p.amountCents;
+        this.cogsCapturedCents += p.costCents;
+        this.pushLedger({ orderId: p.orderId, kind: 'capture', amountCents: p.amountCents, costCents: p.costCents, occurredAt: at });
+        break;
+      }
+      case 'finance.refund-issued': {
+        const p = event.payload;
+        this.refundedCents += p.amountCents;
+        this.cogsRefundedCents += p.costCents;
+        this.pushLedger({ orderId: p.orderId, kind: 'refund', amountCents: p.amountCents, costCents: p.costCents, occurredAt: at });
+        break;
+      }
     }
 
-    if (event.eventType !== 'inventory.stock-level-changed') {
-      this.recordStep(event.payload.orderId, event.eventType, at);
-    }
+    if (stepOrderId) this.recordStep(stepOrderId, event.eventType, at);
     this.countThroughput(event, at);
     this.recent.push({
       eventId: event.eventId,
@@ -187,8 +259,17 @@ export class Projection {
   }
 
   /** Records a message that failed contract validation (it is skipped, not applied). */
-  recordInvalid(): void {
+  recordInvalid(raw?: string, error?: string): void {
     this.counters.invalid++;
+    if (raw !== undefined) {
+      this.deadLetters.unshift({
+        eventType: raw.match(/"eventType"\s*:\s*"([^"]+)"/)?.[1] ?? null,
+        raw: raw.length > 400 ? `${raw.slice(0, 400)}…` : raw,
+        error: error ?? 'invalid message',
+        at: this.opts.now().toISOString(),
+      });
+      if (this.deadLetters.length > 5) this.deadLetters.pop();
+    }
     this._version++;
   }
 
@@ -246,6 +327,27 @@ export class Projection {
         lowStockThreshold: this.opts.lowStockThreshold,
         lowStock,
       },
+      procurement: {
+        quotes: [...this.quotes.values()].sort(
+          (a, b) => a.sku.localeCompare(b.sku) || a.unitCostCents - b.unitCostCents,
+        ),
+        purchaseOrders: [...this.purchaseOrders.values()]
+          .sort((a, b) => b.placedAt.localeCompare(a.placedAt))
+          .slice(0, 12),
+      },
+      finance: {
+        capturedCents: this.capturedCents,
+        refundedCents: this.refundedCents,
+        cogsCents: this.cogsCapturedCents - this.cogsRefundedCents,
+        marginCents:
+          this.capturedCents - this.refundedCents - (this.cogsCapturedCents - this.cogsRefundedCents),
+        reconciles:
+          this.ledger.length === 0
+            ? null
+            : this.capturedCents - this.refundedCents === this.revenueCents,
+        ledger: [...this.ledger],
+      },
+      deadLetters: [...this.deadLetters],
       throughput: this.throughputSeries(),
       recentEvents: [...this.recent].reverse(),
       consumer: { ...this.counters, lastEventAt: this.lastEventAt },
@@ -346,8 +448,15 @@ export class Projection {
     if (minute < oldestKept) return;
     const bucket = this.throughput.get(minute) ?? { orders: 0, inventory: 0 };
     if (event.eventType.startsWith('order.')) bucket.orders++;
-    else bucket.inventory++;
+    else if (event.eventType.startsWith('inventory.')) bucket.inventory++;
+    // Procurement and finance traffic is real but not part of this chart.
+    else return;
     this.throughput.set(minute, bucket);
+  }
+
+  private pushLedger(entry: LedgerEntry): void {
+    this.ledger.unshift(entry);
+    if (this.ledger.length > 50) this.ledger.pop();
   }
 
   private throughputSeries(): ThroughputPoint[] {

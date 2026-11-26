@@ -1,4 +1,4 @@
-import type { DomainEvent } from '@orderflow/contracts';
+import { partitionKeyOf, type DomainEvent } from '@orderflow/contracts';
 import { Projection } from '../src/projection/projection';
 import { OrderFlowSimulator } from '../src/simulator/generator';
 import { T0_MS, at, cancelled, confirmed, ev, level, placed, rejected } from './fixtures';
@@ -365,6 +365,99 @@ describe('saga timeline', () => {
   });
 });
 
+describe('procurement and finance', () => {
+  const quote = (sku: string, supplierId: string, unitCostCents: number) =>
+    ev(
+      'procurement.quote-received',
+      {
+        quoteId: `${sku}-${supplierId}`,
+        sku,
+        supplierId,
+        supplierName: 'Northwind Supply',
+        unitCostCents,
+        leadTimeDays: 3,
+        moq: 6,
+        onTimeRate: 0.97,
+      },
+      { ms: 0 },
+    );
+
+  it('keeps the latest quote per supplier and moves a purchase order to received', () => {
+    const p = make();
+    p.apply(quote('SKU-1', 'northwind', 900));
+    p.apply(quote('SKU-1', 'vertex', 820));
+    p.apply(quote('SKU-1', 'northwind', 880));
+
+    expect(p.snapshot(true).procurement.quotes).toHaveLength(2);
+    const northwind = p.snapshot(true).procurement.quotes.find((q) => q.supplierId === 'northwind')!;
+    expect(northwind.unitCostCents).toBe(880);
+
+    p.apply(
+      ev(
+        'procurement.purchase-order-placed',
+        {
+          purchaseOrderId: 'PO-1',
+          sku: 'SKU-1',
+          supplierId: 'northwind',
+          supplierName: 'Northwind Supply',
+          quantity: 12,
+          unitCostCents: 880,
+          leadTimeDays: 3,
+        },
+        { ms: 100 },
+      ),
+    );
+    expect(p.snapshot(true).procurement.purchaseOrders[0]).toMatchObject({
+      status: 'in-transit',
+      totalCents: 10_560,
+    });
+
+    p.apply(
+      ev(
+        'procurement.goods-received',
+        { purchaseOrderId: 'PO-1', sku: 'SKU-1', quantity: 12, unitCostCents: 880 },
+        { ms: 5_000 },
+      ),
+    );
+    expect(p.snapshot(true).procurement.purchaseOrders[0]).toMatchObject({
+      status: 'received',
+      receivedAt: at(5_000),
+    });
+  });
+
+  it('recognises captures and refunds, and reconciles against order totals', () => {
+    const p = make();
+    p.apply(placed('ORD-1', 0, 25.5));
+    p.apply(confirmed('ORD-1', 100));
+    p.apply(
+      ev('finance.payment-captured', { orderId: 'ORD-1', amountCents: 2550, costCents: 1600 }, { ms: 100 }),
+    );
+
+    let f = p.snapshot(true).finance;
+    expect(f).toMatchObject({
+      capturedCents: 2550,
+      refundedCents: 0,
+      cogsCents: 1600,
+      marginCents: 950,
+      reconciles: true,
+    });
+
+    p.apply(cancelled('ORD-1', 300));
+    p.apply(
+      ev('finance.refund-issued', { orderId: 'ORD-1', amountCents: 2550, costCents: 1600 }, { ms: 300 }),
+    );
+    f = p.snapshot(true).finance;
+    expect(f).toMatchObject({
+      capturedCents: 2550,
+      refundedCents: 2550,
+      cogsCents: 0,
+      marginCents: 0,
+      reconciles: true,
+    });
+    expect(p.snapshot(true).orders.revenueCents).toBe(0);
+  });
+});
+
 it('matches the simulator’s own bookkeeping end to end', () => {
   const sim = new OrderFlowSimulator({ seed: 3 });
   const p = make();
@@ -397,7 +490,9 @@ function simulatedStream(orders: number): DomainEvent[] {
  */
 function interleaveByKey(events: readonly DomainEvent[], seed: number): DomainEvent[] {
   const keyOf = (e: DomainEvent) =>
-    e.eventType === 'inventory.stock-level-changed' ? `sku:${e.payload.sku}` : `${e.eventType.split('.')[0]}:${e.payload.orderId}`;
+    e.eventType === 'inventory.stock-level-changed'
+      ? `sku:${e.payload.sku}`
+      : `${e.eventType.split('.')[0]}:${partitionKeyOf(e)}`;
   const queues = new Map<string, DomainEvent[]>();
   for (const e of events) queues.set(keyOf(e), [...(queues.get(keyOf(e)) ?? []), e]);
   const live = [...queues.values()];

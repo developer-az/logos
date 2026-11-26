@@ -115,6 +115,30 @@ describe('partitionKeyOf', () => {
     expect(partitionKeyOf(DomainEventSchema.parse(placed))).toBe(placed.payload.orderId);
     expect(partitionKeyOf(DomainEventSchema.parse(levelChanged))).toBe('SKU-1');
   });
+
+  it('keys procurement events by SKU and money by order id', () => {
+    const quote = {
+      ...placed,
+      eventType: 'procurement.quote-received',
+      payload: {
+        quoteId: 'q-1',
+        sku: 'SKU-1',
+        supplierId: 'northwind',
+        supplierName: 'Northwind Supply',
+        unitCostCents: 900,
+        leadTimeDays: 3,
+        moq: 6,
+        onTimeRate: 0.97,
+      },
+    };
+    const payment = {
+      ...placed,
+      eventType: 'finance.payment-captured',
+      payload: { orderId: 'ORD-1', amountCents: 2500, costCents: 1600 },
+    };
+    expect(partitionKeyOf(DomainEventSchema.parse(quote))).toBe('SKU-1');
+    expect(partitionKeyOf(DomainEventSchema.parse(payment))).toBe('ORD-1');
+  });
 });
 
 describe('toCents', () => {
@@ -127,12 +151,19 @@ describe('toCents', () => {
 });
 
 it('names topics and dead-letter topics like the services do', () => {
-  expect(TOPICS).toEqual({ orders: 'orders.events.v1', inventory: 'inventory.events.v1' });
+  expect(TOPICS).toEqual({
+    orders: 'orders.events.v1',
+    inventory: 'inventory.events.v1',
+    procurement: 'procurement.events.v1',
+    finance: 'finance.events.v1',
+  });
   expect(deadLetterTopicFor(TOPICS.orders)).toBe('orders.events.v1.dlt');
 });
 
-it('knows exactly the eight event types in the contract', () => {
+it('knows every event type in the contract', () => {
   expect([...EVENT_TYPES].sort()).toEqual([
+    'finance.payment-captured',
+    'finance.refund-issued',
     'inventory.stock-level-changed',
     'inventory.stock-released',
     'inventory.stock-reservation-failed',
@@ -141,5 +172,8 @@ it('knows exactly the eight event types in the contract', () => {
     'order.confirmed',
     'order.placed',
     'order.rejected',
+    'procurement.goods-received',
+    'procurement.purchase-order-placed',
+    'procurement.quote-received',
   ]);
 });

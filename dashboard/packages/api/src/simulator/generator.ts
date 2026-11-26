@@ -1,7 +1,8 @@
 import {
   SCHEMA_VERSION,
-  TOPICS,
+  DEMO_LEAD_TIME_DAY_MS,
   partitionKeyOf,
+  topicFor,
   type DomainEvent,
   type EventOf,
   type EventType,
@@ -41,11 +42,58 @@ export interface SimulatorOptions {
 interface Sku {
   sku: string;
   unitPrice: number;
+  unitCostCents: number;
   onHand: number;
   reserved: number;
   version: number;
   restockPending: boolean;
+  /** A purchase order is open, so the automatic restock stays out of the way. */
+  poPending: boolean;
 }
+
+interface Supplier {
+  supplierId: string;
+  supplierName: string;
+  /** Multiplier on the SKU's own cost basis. */
+  costFactor: number;
+  leadTimeDays: number;
+  moq: number;
+  onTimeRate: number;
+}
+
+/**
+ * Three suppliers with a real trade-off: the cheapest is the slowest, the fastest is the
+ * dearest, and MOQ decides how much cash a small restock ties up.
+ */
+export const SUPPLIERS: readonly Supplier[] = [
+  {
+    supplierId: 'northwind',
+    supplierName: 'Northwind Supply',
+    costFactor: 0.96,
+    leadTimeDays: 3,
+    moq: 6,
+    onTimeRate: 0.97,
+  },
+  {
+    supplierId: 'vertex',
+    supplierName: 'Vertex Components',
+    costFactor: 0.88,
+    leadTimeDays: 6,
+    moq: 12,
+    onTimeRate: 0.91,
+  },
+  {
+    supplierId: 'kiloparts',
+    supplierName: 'Kilo Parts',
+    costFactor: 1.04,
+    leadTimeDays: 1,
+    moq: 3,
+    onTimeRate: 0.86,
+  },
+];
+
+/** The demo compresses a day of lead time into a few seconds. */
+const LEAD_TIME_DAY_MS = DEMO_LEAD_TIME_DAY_MS;
 
 interface Scheduled {
   at: number;
@@ -69,6 +117,9 @@ export class OrderFlowSimulator {
   private readonly skus: Sku[];
   private readonly queue: Scheduled[] = [];
   private readonly opts: Required<Omit<SimulatorOptions, 'seed'>>;
+  /** Quotes per `${sku}|${supplierId}`, resolved once so a PO charges exactly the quoted price. */
+  private readonly quotes = new Map<string, { unitCostCents: number; leadTimeDays: number; moq: number }>();
+  private readonly orderTotals = new Map<string, { totalCents: number; costCents: number }>();
   private seq = 0;
 
   constructor(options: SimulatorOptions = {}) {
@@ -81,15 +132,30 @@ export class OrderFlowSimulator {
       restockQuantity: 30,
       ...options,
     };
-    this.skus = Array.from({ length: this.opts.skus }, (_, i) => ({
-      sku: `SKU-${String(i + 1).padStart(4, '0')}`,
+    this.skus = Array.from({ length: this.opts.skus }, (_, i) => {
       // Prices like 12.99: whole cents, as the services' decimal amounts are.
-      unitPrice: (500 + Math.floor(this.rand() * 9500)) / 100,
-      onHand: this.opts.initialStock,
-      reserved: 0,
-      version: 0,
-      restockPending: false,
-    }));
+      const unitPrice = (500 + Math.floor(this.rand() * 9500)) / 100;
+      return {
+        sku: `SKU-${String(i + 1).padStart(4, '0')}`,
+        unitPrice,
+        // Goods cost 55-73% of the shelf price, which leaves a believable margin.
+        unitCostCents: Math.round(unitPrice * 100 * (0.55 + this.rand() * 0.18)),
+        onHand: this.opts.initialStock,
+        reserved: 0,
+        version: 0,
+        restockPending: false,
+        poPending: false,
+      };
+    });
+    for (const s of this.skus) {
+      for (const supplier of SUPPLIERS) {
+        this.quotes.set(`${s.sku}|${supplier.supplierId}`, {
+          unitCostCents: Math.round(s.unitCostCents * supplier.costFactor),
+          leadTimeDays: supplier.leadTimeDays,
+          moq: supplier.moq,
+        });
+      }
+    }
   }
 
   /** Initial stock, one inventory.stock-level-changed per SKU. */
@@ -98,22 +164,119 @@ export class OrderFlowSimulator {
     return this.skus.map((s) => this.levelChanged(s, at, correlationId, null));
   }
 
+  /** One quote per SKU per supplier, as a procurement service would publish on startup. */
+  seedQuotes(at: number): Envelope[] {
+    const correlationId = this.uuid();
+    const out: Envelope[] = [];
+    for (const s of this.skus) {
+      for (const supplier of SUPPLIERS) {
+        const quote = this.quotes.get(`${s.sku}|${supplier.supplierId}`)!;
+        out.push(
+          this.event('procurement.quote-received', at, correlationId, null, {
+            quoteId: `${s.sku}-${supplier.supplierId}`,
+            sku: s.sku,
+            supplierId: supplier.supplierId,
+            supplierName: supplier.supplierName,
+            unitCostCents: quote.unitCostCents,
+            leadTimeDays: quote.leadTimeDays,
+            moq: quote.moq,
+            onTimeRate: supplier.onTimeRate,
+          }),
+        );
+      }
+    }
+    return out;
+  }
+
+  /** Places a purchase order and schedules the goods receipt after the supplier's lead time. */
+  placePurchaseOrder(
+    at: number,
+    sku: string,
+    supplierId: string,
+    quantity: number,
+  ): { purchaseOrderId: string; envelopes: Envelope[] } {
+    const s = this.skus.find((c) => c.sku === sku);
+    if (!s) throw new Error(`Unknown SKU: ${sku}`);
+    const supplier = SUPPLIERS.find((c) => c.supplierId === supplierId);
+    if (!supplier) throw new Error(`Unknown supplier: ${supplierId}`);
+    const quote = this.quotes.get(`${sku}|${supplierId}`)!;
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error('Quantity must be a positive integer');
+    }
+    if (quantity < quote.moq) {
+      throw new Error(`${supplier.supplierName} has a minimum order of ${quote.moq}`);
+    }
+
+    const correlationId = this.uuid();
+    const purchaseOrderId = this.uuid();
+    const placed = this.event('procurement.purchase-order-placed', at, correlationId, null, {
+      purchaseOrderId,
+      sku,
+      supplierId,
+      supplierName: supplier.supplierName,
+      quantity,
+      unitCostCents: quote.unitCostCents,
+      leadTimeDays: quote.leadTimeDays,
+    });
+    s.poPending = true;
+    this.schedule(at + quote.leadTimeDays * LEAD_TIME_DAY_MS, (t) => {
+      s.onHand += quantity;
+      s.poPending = false;
+      const received = this.event('procurement.goods-received', t, correlationId, placed.event.eventId, {
+        purchaseOrderId,
+        sku,
+        quantity,
+        unitCostCents: quote.unitCostCents,
+      });
+      return [received, this.levelChanged(s, t, correlationId, received.event.eventId)];
+    });
+    return { purchaseOrderId, envelopes: [placed] };
+  }
+
+  /** The catalogue the simulator sells from, with the prices its events carry. */
+  catalog(): Array<{ sku: string; unitPrice: number }> {
+    return this.skus.map((s) => ({ sku: s.sku, unitPrice: s.unitPrice }));
+  }
+
   /** Places a new order now and schedules the rest of its saga. */
   placeOrder(at: number): Envelope[] {
-    const orderId = this.uuid();
-    const correlationId = this.uuid();
     const lineCount = 1 + Math.floor(this.rand() * 3);
     const picked = new Map<Sku, number>();
     for (let i = 0; i < lineCount; i++) {
       const s = this.skus[Math.floor(this.rand() * this.skus.length)]!;
       picked.set(s, (picked.get(s) ?? 0) + 1 + Math.floor(this.rand() * 3));
     }
+    return this.placePicked(at, picked);
+  }
+
+  /** Places an order for explicit lines, with the same reservation saga as a simulated order. */
+  placeOrderLines(
+    at: number,
+    requested: Array<{ sku: string; quantity: number }>,
+  ): { orderId: string; envelopes: Envelope[] } {
+    const picked = new Map<Sku, number>();
+    for (const line of requested) {
+      const s = this.skus.find((c) => c.sku === line.sku);
+      if (!s) throw new Error(`Unknown SKU: ${line.sku}`);
+      if (!Number.isInteger(line.quantity) || line.quantity <= 0) {
+        throw new Error('Quantity must be a positive integer');
+      }
+      picked.set(s, (picked.get(s) ?? 0) + line.quantity);
+    }
+    const orderId = this.uuid();
+    return { orderId, envelopes: this.placePicked(at, picked, orderId) };
+  }
+
+  private placePicked(at: number, picked: Map<Sku, number>, orderId = this.uuid()): Envelope[] {
+    const correlationId = this.uuid();
     const lines: OrderLine[] = [...picked].map(([s, quantity]) => ({
       sku: s.sku,
       quantity,
       unitPrice: s.unitPrice,
     }));
     const totalCents = lines.reduce((t, l) => t + l.quantity * Math.round(l.unitPrice * 100), 0);
+    const costCents = [...picked].reduce((t, [s, q]) => t + q * s.unitCostCents, 0);
+    this.orderTotals.set(orderId, { totalCents, costCents });
     const placed = this.event('order.placed', at, correlationId, null, {
       orderId,
       customerId: `customer-${1 + Math.floor(this.rand() * 500)}`,
@@ -189,10 +352,20 @@ export class OrderFlowSimulator {
       orderId,
       lines,
     });
+    const confirmed = this.event('order.confirmed', at + 5, correlationId, reserved.event.eventId, {
+      orderId,
+    });
+    const amounts = this.orderTotals.get(orderId) ?? { totalCents: 0, costCents: 0 };
+    const captured = this.event('finance.payment-captured', at + 5, correlationId, confirmed.event.eventId, {
+      orderId,
+      amountCents: amounts.totalCents,
+      costCents: amounts.costCents,
+    });
     const out = [
       reserved,
       ...[...picked.keys()].map((s) => this.levelChanged(s, at, correlationId, reserved.event.eventId)),
-      this.event('order.confirmed', at + 5, correlationId, reserved.event.eventId, { orderId }),
+      confirmed,
+      captured,
     ];
     for (const s of picked.keys()) this.maybeScheduleRestock(s, at);
     if (this.rand() < this.opts.cancelRate) {
@@ -226,14 +399,23 @@ export class OrderFlowSimulator {
       orderId,
       lines: [...picked].map(([s, quantity]) => ({ sku: s.sku, quantity })),
     });
+    const amounts = this.orderTotals.get(orderId) ?? { totalCents: 0, costCents: 0 };
+    const refunded = this.event('finance.refund-issued', at + 5, correlationId, cancelled.event.eventId, {
+      orderId,
+      amountCents: amounts.totalCents,
+      costCents: amounts.costCents,
+    });
     return [
       cancelled,
       released,
       ...[...picked.keys()].map((s) => this.levelChanged(s, at + 5, correlationId, released.event.eventId)),
+      refunded,
     ];
   }
 
   private maybeScheduleRestock(s: Sku, at: number): void {
+    // A purchase order in flight is the better restock: leave the level alone until it lands.
+    if (s.poPending) return;
     if (s.restockPending || s.onHand - s.reserved > this.opts.restockAt) return;
     s.restockPending = true;
     this.schedule(at + 3_000 + Math.floor(this.rand() * 5_000), (t) => {
@@ -275,7 +457,7 @@ export class OrderFlowSimulator {
       payload,
     } as DomainEvent;
     return {
-      topic: eventType.startsWith('order.') ? TOPICS.orders : TOPICS.inventory,
+      topic: topicFor(eventType),
       key: partitionKeyOf(event),
       event,
     };

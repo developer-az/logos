@@ -19,9 +19,23 @@ import { z } from 'zod';
 export const TOPICS = {
   orders: 'orders.events.v1',
   inventory: 'inventory.events.v1',
+  /** Dashboard-side extension: the C# services do not publish these yet (demo simulator does). */
+  procurement: 'procurement.events.v1',
+  finance: 'finance.events.v1',
 } as const;
 
+/** Which topic carries an event type, on the wire. */
+export function topicFor(eventType: string): string {
+  if (eventType.startsWith('order.')) return TOPICS.orders;
+  if (eventType.startsWith('inventory.')) return TOPICS.inventory;
+  if (eventType.startsWith('procurement.')) return TOPICS.procurement;
+  return TOPICS.finance;
+}
+
 export const deadLetterTopicFor = (topic: string) => `${topic}.dlt`;
+
+/** The demo compresses one supplier day of lead time into this many milliseconds. */
+export const DEMO_LEAD_TIME_DAY_MS = 4_000;
 
 export const SCHEMA_VERSION = 1;
 
@@ -85,6 +99,62 @@ export const StockLevelChangedSchema = envelope(
     }),
 );
 
+const cents = z.number().int().nonnegative();
+
+/**
+ * Procurement and finance are the dashboard's second and third bounded contexts. They use the
+ * same envelope, dedupe and read-model rules as the order saga; only the C# services are absent,
+ * so the demo simulator is their producer.
+ */
+export const ProcurementQuoteReceivedSchema = envelope(
+  'procurement.quote-received',
+  z.object({
+    quoteId: id,
+    sku,
+    supplierId: id,
+    supplierName: z.string().min(1).max(64),
+    /** What the supplier charges for one unit, delivered. */
+    unitCostCents: cents,
+    leadTimeDays: z.number().int().positive().max(90),
+    moq: z.number().int().positive(),
+    /** Share of past deliveries that arrived on time, 0..1. */
+    onTimeRate: z.number().min(0).max(1),
+  }),
+);
+
+export const PurchaseOrderPlacedSchema = envelope(
+  'procurement.purchase-order-placed',
+  z.object({
+    purchaseOrderId: id,
+    sku,
+    supplierId: id,
+    supplierName: z.string().min(1).max(64),
+    quantity,
+    unitCostCents: cents,
+    leadTimeDays: z.number().int().positive().max(90),
+  }),
+);
+
+export const GoodsReceivedSchema = envelope(
+  'procurement.goods-received',
+  z.object({ purchaseOrderId: id, sku, quantity, unitCostCents: cents }),
+);
+
+export const PaymentCapturedSchema = envelope(
+  'finance.payment-captured',
+  z.object({
+    orderId: id,
+    amountCents: cents,
+    /** Cost of the goods sold, recognised with the capture. */
+    costCents: cents,
+  }),
+);
+
+export const RefundIssuedSchema = envelope(
+  'finance.refund-issued',
+  z.object({ orderId: id, amountCents: cents, costCents: cents }),
+);
+
 const SCHEMAS = [
   OrderPlacedSchema,
   OrderConfirmedSchema,
@@ -94,6 +164,11 @@ const SCHEMAS = [
   StockReservationFailedSchema,
   StockReleasedSchema,
   StockLevelChangedSchema,
+  ProcurementQuoteReceivedSchema,
+  PurchaseOrderPlacedSchema,
+  GoodsReceivedSchema,
+  PaymentCapturedSchema,
+  RefundIssuedSchema,
 ] as const;
 
 export const DomainEventSchema = z.discriminatedUnion('eventType', SCHEMAS);
@@ -143,7 +218,16 @@ export function parseEvent(raw: Buffer | string | null | undefined): ParseResult
 
 /** The Kafka message key the producer uses for an event. */
 export function partitionKeyOf(event: DomainEvent): string {
-  return event.eventType === 'inventory.stock-level-changed' ? event.payload.sku : event.payload.orderId;
+  switch (event.eventType) {
+    case 'inventory.stock-level-changed':
+    case 'procurement.quote-received':
+    case 'procurement.purchase-order-placed':
+    case 'procurement.goods-received':
+      // One SKU's quotes, orders and receipts stay in order.
+      return event.payload.sku;
+    default:
+      return event.payload.orderId;
+  }
 }
 
 /** Converts a decimal currency amount to integer cents without float drift (19.99 -> 1999). */

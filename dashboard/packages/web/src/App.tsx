@@ -1,21 +1,26 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { ConnectionBadge } from './components/ConnectionBadge';
-import { EventFeed } from './components/EventFeed';
-import { KpiTiles } from './components/KpiTiles';
-import { LowStockTable } from './components/LowStockTable';
-import { RecentOrders } from './components/RecentOrders';
-import { SagaSpotlight } from './components/SagaSpotlight';
-import { StatusBars } from './components/StatusBars';
-import { ThroughputChart } from './components/ThroughputChart';
 import type { DataMode, ModeStore } from './hooks/fallback-source';
+import { navigateTo, useHashRoute } from './hooks/useHashRoute';
 import { useLiveSnapshot, type EventSourceFactory } from './hooks/useLiveSnapshot';
-import { formatAgo, formatCount } from './lib/format';
+import { cartCount, loadCart, saveCart, withQuantity, type Cart } from './lib/cart';
+import { unavailableActions, type CommerceActions } from './lib/commerce';
+import { formatAgo } from './lib/format';
+import { AboutPage } from './pages/AboutPage';
+import { CartPage } from './pages/CartPage';
+import { ControlTower } from './pages/ControlTower';
+import { FinancePage } from './pages/FinancePage';
+import { IncidentsPage } from './pages/IncidentsPage';
+import { OrderPage } from './pages/OrderPage';
+import { SourcingPage } from './pages/SourcingPage';
+import { StorePage } from './pages/StorePage';
 
 export function App({
   streamUrl,
   createEventSource,
   demo = false,
   mode: modeStore,
+  actions,
 }: {
   streamUrl?: string;
   createEventSource?: EventSourceFactory;
@@ -23,20 +28,36 @@ export function App({
   demo?: boolean;
   /** Public build with a live backend: reports whether it is live or fell back to simulation. */
   mode?: ModeStore;
+  /** The storefront's write side; absent means this deployment cannot place orders. */
+  actions?: CommerceActions;
 }) {
   const { snapshot, connection, receivedAt } = useLiveSnapshot(streamUrl, createEventSource);
   const now = useNow(5_000);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const route = useHashRoute();
+  const [cart, setCart] = useState<Cart>(loadCart);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const reported = useSyncExternalStore(
     (modeStore ?? ALWAYS_LIVE).subscribe,
     (modeStore ?? ALWAYS_LIVE).get,
   );
   const mode: DataMode = demo ? 'simulated' : reported;
   const fellBack = !!modeStore && reported === 'simulated';
+  const commerce = actions ?? unavailableActions;
+  const shopping =
+    route.name === 'store' || route.name === 'cart' || route.name === 'sourcing';
+  const catalog = shopping ? commerce.catalog() : [];
+  const currency = snapshot?.currency ?? 'USD';
+  const items = cartCount(cart);
 
-  const recent = snapshot?.orders.recent ?? [];
-  const traceable = recent.filter((o) => o.timeline?.length);
-  const traced = traceable.find((o) => o.orderId === selectedId) ?? traceable[0];
+  useEffect(() => saveCart(cart), [cart]);
+  useEffect(() => {
+    if (pendingOrderId && snapshot?.orders.recent.some((o) => o.orderId === pendingOrderId)) {
+      setPendingOrderId(null);
+    }
+  }, [snapshot, pendingOrderId]);
+
+  const addToCart = (sku: string, quantity: number) =>
+    setCart((current) => withQuantity(current, sku, (current[sku] ?? 0) + quantity));
 
   return (
     <div className="app">
@@ -47,6 +68,29 @@ export function App({
             <span>Orderflow</span>
           </a>
           <span className="brand-scope">Order &amp; inventory events</span>
+          <nav className="nav" aria-label="Sections">
+            <a className="nav-link" href="#/" aria-current={route.name === 'store' ? 'page' : undefined}>
+              Store
+            </a>
+            <a className="nav-link" href="#/sourcing" aria-current={route.name === 'sourcing' ? 'page' : undefined}>
+              Sourcing
+            </a>
+            <a className="nav-link" href="#/finance" aria-current={route.name === 'finance' ? 'page' : undefined}>
+              Finance
+            </a>
+            <a className="nav-link" href="#/incidents" aria-current={route.name === 'incidents' ? 'page' : undefined}>
+              Incidents
+            </a>
+            <a className="nav-link" href="#/ops" aria-current={route.name === 'ops' ? 'page' : undefined}>
+              Control tower
+            </a>
+            <a className="nav-link" href="#/about" aria-current={route.name === 'about' ? 'page' : undefined}>
+              About
+            </a>
+            <a className="nav-link nav-cart" href="#/cart" aria-current={route.name === 'cart' ? 'page' : undefined}>
+              Cart{items > 0 ? ` (${items})` : ''}
+            </a>
+          </nav>
           <div className="topbar-right">
             <ConnectionBadge connection={connection} caughtUp={snapshot?.caughtUp ?? null} />
             {receivedAt && <span className="freshness">Updated {formatAgo(receivedAt.toISOString(), now)}</span>}
@@ -55,83 +99,64 @@ export function App({
       </div>
 
       <main className="page">
-        <div className="title-row">
-          <div>
-            <h1>Orderflow Live</h1>
-            <p className="sub">
-              {mode === 'simulated'
-                ? 'Orders and inventory, simulated live in your browser'
-                : 'Orders and inventory, straight from Kafka'}
-            </p>
-          </div>
-        </div>
-
-        {modeStore && reported === 'live' && (
-          <p className="notice live-notice">
-            Live. Every number here comes from the C# services through Kafka. Open an order to trace its saga.{' '}
-            <a href="https://github.com/developer-az/logos">Source and architecture</a>
-          </p>
+        {route.name === 'ops' && (
+          <ControlTower
+            snapshot={snapshot}
+            now={now}
+            mode={mode}
+            fellBack={fellBack}
+            demo={demo}
+            live={!!modeStore && reported === 'live'}
+          />
         )}
-
-        {fellBack && (
-          <p className="notice demo-notice">
-            The live backend can't be reached, so this is the browser simulator running the same contracts and read
-            model as production. <a href="https://github.com/developer-az/logos">Source and architecture</a>
-          </p>
+        {route.name === 'store' && (
+          <StorePage
+            catalog={catalog}
+            currency={currency}
+            cart={cart}
+            unavailableReason={commerce.unavailableReason}
+            onAdd={addToCart}
+          />
         )}
-
-        {demo && (
-          <p className="notice demo-notice">
-            Public demo. Events are generated in your browser through the same contracts and read model as the Kafka
-            deployment. <a href="https://github.com/developer-az/logos">Source and architecture</a>
-          </p>
+        {route.name === 'sourcing' && (
+          <SourcingPage
+            snapshot={snapshot}
+            catalog={catalog}
+            now={now}
+            currency={currency}
+            actions={commerce}
+          />
         )}
-
-        {!snapshot ? (
-          <p className="empty" role="status">
-            Waiting for the first update…
-          </p>
-        ) : (
-          <>
-            {!snapshot.caughtUp && (
-              <p className="notice" role="status">
-                Replaying event history. Numbers will settle once the dashboard has caught up.
-              </p>
-            )}
-
-            <p className="consumer" aria-label="Consumer health">
-              {formatCount(snapshot.consumer.processed)} events applied ·{' '}
-              {formatCount(snapshot.consumer.duplicates)} duplicates ignored ·{' '}
-              {formatCount(snapshot.consumer.invalid)} invalid {mode === 'simulated' ? 'rejected' : 'dead-lettered'} ·{' '}
-              {formatCount(snapshot.consumer.unsupported)} unknown types skipped
-            </p>
-
-            <KpiTiles snapshot={snapshot} />
-
-            <div className="workbench">
-              <SagaSpotlight order={traced} now={now} currency={snapshot.currency} />
-              <ThroughputChart points={snapshot.throughput} />
-              <div className="stack span-4">
-                <StatusBars byStatus={snapshot.orders.byStatus} />
-                <LowStockTable
-                  items={snapshot.inventory.lowStock}
-                  threshold={snapshot.inventory.lowStockThreshold}
-                  skus={snapshot.inventory.skus}
-                />
-              </div>
-              <RecentOrders
-                orders={recent}
-                now={now}
-                currency={snapshot.currency}
-                selectedId={traced?.orderId}
-                onSelect={setSelectedId}
-              />
-              <details className="card span-12 raw-stream">
-                <summary>Event stream · {formatCount(snapshot.recentEvents.length)} recent events</summary>
-                <EventFeed events={snapshot.recentEvents} />
-              </details>
-            </div>
-          </>
+        {route.name === 'finance' && (
+          <FinancePage snapshot={snapshot} now={now} currency={currency} />
+        )}
+        {route.name === 'incidents' && (
+          <IncidentsPage snapshot={snapshot} actions={commerce} now={now} />
+        )}
+        {route.name === 'about' && <AboutPage />}
+        {route.name === 'cart' && (
+          <CartPage
+            cart={cart}
+            catalog={catalog}
+            currency={currency}
+            actions={commerce}
+            onChangeQuantity={(sku, quantity) => setCart((current) => withQuantity(current, sku, quantity))}
+            onAdd={addToCart}
+            onOrderPlaced={(orderId) => {
+              setCart({});
+              setPendingOrderId(orderId);
+              navigateTo(`#/orders/${orderId}`);
+            }}
+          />
+        )}
+        {route.name === 'order' && (
+          <OrderPage
+            orderId={route.orderId}
+            snapshot={snapshot}
+            now={now}
+            currency={currency}
+            pending={pendingOrderId === route.orderId}
+          />
         )}
       </main>
     </div>

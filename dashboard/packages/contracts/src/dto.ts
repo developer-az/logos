@@ -62,6 +62,52 @@ export interface RecentEvent {
   key: string;
 }
 
+/** A supplier's price for one SKU, as a quote event last reported it. */
+export interface SupplierQuote {
+  quoteId: string;
+  sku: string;
+  supplierId: string;
+  supplierName: string;
+  unitCostCents: number;
+  leadTimeDays: number;
+  moq: number;
+  onTimeRate: number;
+  receivedAt: string;
+}
+
+export type PurchaseOrderStatus = 'in-transit' | 'received';
+
+export interface PurchaseOrderView {
+  purchaseOrderId: string;
+  sku: string;
+  supplierId: string;
+  supplierName: string;
+  quantity: number;
+  unitCostCents: number;
+  totalCents: number;
+  leadTimeDays: number;
+  placedAt: string;
+  status: PurchaseOrderStatus;
+  receivedAt: string | null;
+}
+
+/** One money movement recognised from an order's fate. */
+export interface LedgerEntry {
+  orderId: string;
+  kind: 'capture' | 'refund';
+  amountCents: number;
+  costCents: number;
+  occurredAt: string;
+}
+
+/** A message the consumer refused, kept so the page can show what was rejected. */
+export interface DeadLetter {
+  eventType: string | null;
+  raw: string;
+  error: string;
+  at: string;
+}
+
 export interface ConsumerStats {
   processed: number;
   duplicates: number;
@@ -100,6 +146,23 @@ export interface DashboardSnapshot {
     lowStockThreshold: number;
     lowStock: InventoryView[];
   };
+  /** Supplier quotes and the purchase orders raised from them. */
+  procurement: {
+    quotes: SupplierQuote[];
+    purchaseOrders: PurchaseOrderView[];
+  };
+  /** Recognised money, folded from the finance events. */
+  finance: {
+    capturedCents: number;
+    refundedCents: number;
+    cogsCents: number;
+    marginCents: number;
+    /** Whether the ledger total agrees with the order totals the read model computed itself. */
+    reconciles: boolean | null;
+    ledger: LedgerEntry[];
+  };
+  /** Recent messages the consumer refused (only retained where the transport keeps the body). */
+  deadLetters: DeadLetter[];
   throughput: ThroughputPoint[];
   recentEvents: RecentEvent[];
   consumer: ConsumerStats;
