@@ -10,7 +10,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<InventoryDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("Inventory")));
 builder.Services.AddKafkaMessaging(builder.Configuration)
     .AddOutboxDispatcher<InventoryDbContext>()
-    .AddKafkaConsumer<OrderEventsHandler>(Topics.OrderEvents);
+    .AddKafkaConsumer<OrderEventsHandler>(Topics.OrderEvents)
+    .AddKafkaConsumer<ProcurementEventsHandler>(Topics.ProcurementEvents);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();

@@ -21,7 +21,7 @@ spec:
     - from:
         - podSelector:
             matchExpressions:
-              - { key: app.kubernetes.io/name, operator: In, values: [order-service, inventory-service] }
+              - { key: app.kubernetes.io/name, operator: In, values: [order-service, inventory-service, procurement-service] }
       ports:
         - { port: 5432, protocol: TCP }
 ---
@@ -47,7 +47,7 @@ metadata:
 spec:
   podSelector:
     matchExpressions:
-      - { key: app.kubernetes.io/name, operator: In, values: [order-service, inventory-service] }
+      - { key: app.kubernetes.io/name, operator: In, values: [order-service, inventory-service, procurement-service] }
   policyTypes: [Ingress]
   ingress:
     - from:

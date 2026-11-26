@@ -3,6 +3,8 @@
 set -u
 ORDER_API=${ORDER_API:-http://order-service}
 INVENTORY_API=${INVENTORY_API:-http://inventory-service}
+# Empty when the deployment has no procurement service (the 1 GB free tier runs two topics).
+PROCUREMENT_API=${PROCUREMENT_API:-}
 INTERVAL=${INTERVAL_SECONDS:-1}
 CANCEL_PERCENT=${CANCEL_PERCENT:-10}
 RESTOCK_BELOW=${RESTOCK_BELOW:-10}
@@ -18,17 +20,29 @@ restock() {
   for entry in $CATALOG; do
     sku=${entry%%:*}
     [ "$sku" = WEBCAM-HD ] && continue
-    body=$(curl -sf "$INVENTORY_API/inventory/$sku") || body=""
-    on_hand=$(echo "$body" | field onHand); available=$(echo "$body" | field available)
-    if [ -z "$on_hand" ]; then on_hand=0; available=0; fi
+    available=$(curl -sf "$INVENTORY_API/inventory/$sku" | field available) || available=0
+    if [ -z "$available" ]; then available=0; fi
     if [ "$available" -lt "$RESTOCK_BELOW" ]; then
-      curl -sf -o /dev/null -X PUT "$INVENTORY_API/inventory/$sku" -H 'Content-Type: application/json' \
-        -d "{\"onHand\":$((on_hand + 50 + $(rnd 100)))}" && echo "restocked $sku"
+      if [ -n "$PROCUREMENT_API" ]; then
+        # Kilo Parts: lowest minimum, shortest lead time in the demo.
+        curl -sf -o /dev/null -X POST "$PROCUREMENT_API/procurement/purchase-orders" \
+          -H 'Content-Type: application/json' \
+          -d "{\"sku\":\"$sku\",\"supplierId\":\"kiloparts\",\"quantity\":50}" \
+          && echo "ordered $sku from kiloparts"
+      else
+        # No procurement service here: write the level directly, as a manual stock count.
+        on_hand=$(curl -sf "$INVENTORY_API/inventory/$sku" | field onHand)
+        if [ -z "$on_hand" ]; then on_hand=0; fi
+        curl -sf -o /dev/null -X PUT "$INVENTORY_API/inventory/$sku" -H 'Content-Type: application/json' \
+          -d "{\"onHand\":$((on_hand + 50))}" && echo "restocked $sku"
+      fi
     fi
   done
 }
 
-until curl -sf -o /dev/null "$ORDER_API/health/ready" && curl -sf -o /dev/null "$INVENTORY_API/health/ready"; do
+until curl -sf -o /dev/null "$ORDER_API/health/ready" \
+  && curl -sf -o /dev/null "$INVENTORY_API/health/ready" \
+  && { [ -z "$PROCUREMENT_API" ] || curl -sf -o /dev/null "$PROCUREMENT_API/health/ready"; }; do
   echo "waiting for the APIs"; sleep 2
 done
 # Create WEBCAM-HD at zero stock once, so its orders are rejected rather than unknown.

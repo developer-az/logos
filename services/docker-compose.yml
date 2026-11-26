@@ -64,6 +64,19 @@ services:
       kafka: { condition: service_healthy }
       postgres: { condition: service_healthy }
 
+  procurement-service:
+    build: { context: ., args: { SERVICE: Procurement.Service } }
+    ports: ["5003:8080"]
+    environment:
+      ConnectionStrings__Procurement: Host=postgres;Database=procurement;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Kafka__BootstrapServers: kafka:9092
+      Procurement__SeedDemoData: "true"
+      # Compress a supplier day so a receipt can be watched locally.
+      Procurement__DaySeconds: "5"
+    depends_on:
+      kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
   kafka-ui:
     image: ghcr.io/kafbat/kafka-ui:v1.3.0
     ports: ["8085:8080"]

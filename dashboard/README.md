@@ -10,15 +10,16 @@ broker.
 | Route | What it does | Backed by |
 |---|---|---|
 | `#/` | Store: catalogue, cart, checkout | Simulator (demo) |
-| `#/sourcing` | Supplier comparison, purchase orders, goods receipt | Simulated procurement events |
+| `#/sourcing` | Supplier comparison, purchase orders, goods receipt | Procurement service (C#) |
 | `#/finance` | Captures, refunds, cost of goods, reconciliation | Simulated finance events |
 | `#/incidents` | Duplicate, malformed and replayed messages | The projection's real counters |
 | `#/ops` | Live orders, stock, throughput, one order's saga | Kafka through the API |
 | `#/about` | What is real, what breaks, and why | Static |
 
-Orders, inventory, procurement and finance are four topics. The C# services produce the first
-two; procurement and finance are produced by the simulator and folded by the same projection, so
-the second and third sagas are real event flows, not mock data. The About page says so explicitly.
+Orders, inventory, procurement and finance are four topics. The C# services produce orders,
+inventory and procurement; finance is produced by the simulator and folded by the same projection.
+The sourcing page therefore runs against the real procurement service when a backend is up, and
+falls back to the simulator with everything else. The About page says what is real.
 
 ![Dashboard](docs/dashboard-desktop.png)
 
@@ -30,7 +31,7 @@ the second and third sagas are real event flows, not mock data. The About page s
 
 ## Run it
 
-With the whole platform (Kafka, Postgres, both C# services, dashboard):
+With the whole platform (Kafka, Postgres, the three C# services, dashboard):
 
 ```sh
 cd dashboard

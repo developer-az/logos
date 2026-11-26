@@ -8,6 +8,7 @@ resources:
   - postgres.yaml
   - order-service.yaml
   - inventory-service.yaml
+  - procurement-service.yaml
   - dashboard.yaml
   - load-generator.yaml
   - network-policies.yaml

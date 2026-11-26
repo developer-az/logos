@@ -81,6 +81,9 @@ services:
       KAFKA_SSL_KEY_FILE: /kafka/service.key
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       LOW_STOCK_THRESHOLD: "5"
+      # Aiven's free tier caps topics, so this deployment runs orders and inventory only; the
+      # dashboard stops waiting for a procurement topic nobody creates here.
+      PROCUREMENT_TOPIC: ""
       NODE_OPTIONS: --max-old-space-size=160
     volumes:
       - ./kafka:/kafka:ro

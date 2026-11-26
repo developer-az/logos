@@ -36,6 +36,8 @@ const EnvSchema = z.object({
   KAFKA_SSL_KEY_FILE: z.string().optional(),
   ORDERS_TOPIC: z.string().default(TOPICS.orders),
   INVENTORY_TOPIC: z.string().default(TOPICS.inventory),
+  /** Procurement quotes and purchase orders; published by the procurement service. Empty disables it. */
+  PROCUREMENT_TOPIC: z.string().default(TOPICS.procurement),
   /**
    * Forward invalid messages to `<source topic>.dlt`, the platform's dead-letter convention.
    * When false they are only counted and logged.
@@ -102,7 +104,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
             password: e.KAFKA_SASL_PASSWORD!,
           }
         : null,
-      topics: [e.ORDERS_TOPIC, e.INVENTORY_TOPIC],
+      topics: [
+        e.ORDERS_TOPIC,
+        e.INVENTORY_TOPIC,
+        ...(e.PROCUREMENT_TOPIC ? [e.PROCUREMENT_TOPIC] : []),
+      ],
       deadLetter: e.DEAD_LETTER_ENABLED ? deadLetterTopicFor : null,
     },
     lowStockThreshold: e.LOW_STOCK_THRESHOLD,

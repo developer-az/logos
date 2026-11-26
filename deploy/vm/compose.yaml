@@ -1,4 +1,4 @@
-# The whole platform on one small Linux VM, public over HTTPS: Kafka (KRaft), PostgreSQL, the two
+# The whole platform on one small Linux VM, public over HTTPS: Kafka (KRaft), PostgreSQL, the three
 # .NET services, the dashboard, the load generator, and Caddy in front with a Let's Encrypt
 # certificate. Built from source on the VM, so it runs on x86 and Arm hosts alike.
 #
@@ -86,6 +86,21 @@ services:
       kafka: { condition: service_healthy }
       postgres: { condition: service_healthy }
 
+  procurement-service:
+    <<: *restart
+    build: { context: ../../services, args: { SERVICE: Procurement.Service } }
+    image: logos-procurement-service:local
+    pull_policy: build
+    mem_limit: 384m
+    environment:
+      ConnectionStrings__Procurement: Host=postgres;Database=procurement;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Kafka__BootstrapServers: kafka:9092
+      Procurement__SeedDemoData: "true"
+      Procurement__DaySeconds: "5"
+    depends_on:
+      kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
   dashboard:
     <<: *restart
     build: { context: ../../dashboard }
@@ -100,6 +115,7 @@ services:
       # The services provision the topics and their .dlt topics on startup.
       order-service: { condition: service_started }
       inventory-service: { condition: service_started }
+      procurement-service: { condition: service_started }
 
   # Same script as deploy/k8s/apps/load-generator.yaml: real orders through the order API, so
   # every event on the dashboard comes out of the C# saga. `docker compose stop load-generator`
@@ -112,6 +128,7 @@ services:
     environment:
       ORDER_API: http://order-service:8080
       INVENTORY_API: http://inventory-service:8080
+      PROCUREMENT_API: http://procurement-service:8080
       INTERVAL_SECONDS: ${LOAD_INTERVAL_SECONDS:-2}
       CANCEL_PERCENT: "10"
     volumes:
@@ -119,6 +136,7 @@ services:
     depends_on:
       order-service: { condition: service_started }
       inventory-service: { condition: service_started }
+      procurement-service: { condition: service_started }
 
   caddy:
     <<: *restart
