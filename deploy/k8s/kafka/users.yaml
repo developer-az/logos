@@ -36,7 +36,11 @@ spec:
         operations: [Write, Describe]
       - resource: { type: topic, name: orders.events.v1 }
         operations: [Read, Describe]
+      - resource: { type: topic, name: procurement.events.v1 }
+        operations: [Read, Describe]
       - resource: { type: topic, name: orders.events.v1.dlt }
+        operations: [Write, Describe]
+      - resource: { type: topic, name: procurement.events.v1.dlt }
         operations: [Write, Describe]
       - resource: { type: group, name: inventory-service }
         operations: [Read]
@@ -60,9 +64,30 @@ spec:
         operations: [Read, Describe]
       - resource: { type: topic, name: inventory.events.v1 }
         operations: [Read, Describe]
+      - resource: { type: topic, name: procurement.events.v1 }
+        operations: [Read, Describe]
       - resource: { type: topic, name: orders.events.v1.dlt }
         operations: [Write, Describe]
       - resource: { type: topic, name: inventory.events.v1.dlt }
         operations: [Write, Describe]
+      - resource: { type: topic, name: procurement.events.v1.dlt }
+        operations: [Write, Describe]
       - resource: { type: group, name: dashboard, patternType: prefix }
         operations: [Read]
+
+---
+# Procurement writes quotes, purchase orders and goods receipts, and consumes nothing.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: procurement-service
+  labels: { strimzi.io/cluster: logos-kafka }
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: procurement.events.v1 }
+        operations: [Write, Describe]
+      - resource: { type: cluster }
+        operations: [IdempotentWrite]

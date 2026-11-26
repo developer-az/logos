@@ -83,8 +83,8 @@ export function SourcingPage({
         <section className="card" aria-labelledby="no-quotes">
           <h2 id="no-quotes">No supplier quotes</h2>
           <p className="card-hint">
-            This backend does not publish <span className="mono">procurement.events.v1</span> yet. The
-            public demo simulates it in the browser; the C# services cover orders and inventory.
+            This backend does not publish <span className="mono">procurement.events.v1</span>. The
+            public demo simulates the procurement service in the browser.
           </p>
         </section>
       ) : (

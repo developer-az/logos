@@ -1,6 +1,6 @@
 # Event contracts
 
-Both services talk only through Kafka. This page is the contract for any other consumer (the live dashboard, analytics).
+The services talk only through Kafka. This page is the contract for any other consumer (the live dashboard, analytics).
 
 ## Topics
 
@@ -8,6 +8,7 @@ Both services talk only through Kafka. This page is the contract for any other c
 |---|---|---|---|
 | `orders.events.v1` | order-service | order id | 3 |
 | `inventory.events.v1` | inventory-service | order id, or SKU for `inventory.stock-level-changed` | 3 |
+| `procurement.events.v1` | procurement-service | SKU | 3 |
 | `<topic>.dlt` | any consumer | original key | 3 |
 
 Keying by order id puts every event of one order on one partition, so consumers see them in the order they were produced. Topics are created at service startup (`Kafka:ProvisionTopics`); broker auto-creation is off in docker-compose.
@@ -55,6 +56,17 @@ Every message value is UTF-8 JSON (camelCase, enums as camelCase strings):
 | `inventory.stock-released` | `{ orderId, lines: [{ sku, quantity }] }` |
 | `inventory.stock-level-changed` | `{ sku, onHand, reserved, available, version }`: a full snapshot keyed by SKU; `version` rises by 1 on every change to that SKU, so keep the highest you have seen |
 
+### procurement.events.v1
+
+Money in these payloads is integer cents, and the key is the SKU, so one SKU's quotes, orders and
+receipts stay in order.
+
+| eventType | payload |
+|---|---|
+| `procurement.quote-received` | `{ quoteId, sku, supplierId, supplierName, unitCostCents, leadTimeDays, moq, onTimeRate }` |
+| `procurement.purchase-order-placed` | `{ purchaseOrderId, sku, supplierId, supplierName, quantity, unitCostCents, leadTimeDays }` |
+| `procurement.goods-received` | `{ purchaseOrderId, sku, quantity, unitCostCents }` |
+
 ## Saga
 
 ```
@@ -65,3 +77,18 @@ POST /orders/{id}/cancel ──► order.cancelled ──► inventory.stock-rel
 ```
 
 `inventory.stock-level-changed` follows every reservation, release and manual stock update, so a dashboard can keep a live stock view from that one event type.
+
+## Restocking
+
+The second saga buys the stock the first one could not reserve. Procurement owns the order;
+inventory owns the quantity.
+
+```
+POST /procurement/purchase-orders ──► procurement.purchase-order-placed
+        (lead time elapses in the procurement service)
+                                     └─ procurement.goods-received ──► inventory adds on-hand
+                                                                       └─ inventory.stock-level-changed
+```
+
+The quote events are published when the catalogue is seeded; a supplier integration would replace
+that seeder without changing the contract.

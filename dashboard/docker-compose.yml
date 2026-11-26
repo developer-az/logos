@@ -18,6 +18,7 @@ services:
       # The services provision the topics and their .dlt topics on startup.
       order-service: { condition: service_started }
       inventory-service: { condition: service_started }
+      procurement-service: { condition: service_started }
 
   simulator:
     profiles: [simulator]

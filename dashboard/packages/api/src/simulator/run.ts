@@ -7,7 +7,7 @@
  */
 import { parseArgs } from 'node:util';
 import { Kafka, Partitioners, type Message } from 'kafkajs';
-import { TOPICS, deadLetterTopicFor } from '@orderflow/contracts';
+import { deadLetterTopicFor } from '@orderflow/contracts';
 import { loadConfig } from '../config';
 import { kafkaClientConfig } from '../kafka/consumer';
 import { OrderFlowSimulator, mulberry32, type Envelope } from './generator';
@@ -33,20 +33,31 @@ async function main(): Promise<void> {
   const seed = Number(args.seed);
   const rand = mulberry32(seed + 1);
   const [ordersTopic, inventoryTopic] = config.kafka.topics as [string, string];
-  const topicFor = (e: Envelope) => (e.topic === TOPICS.orders ? ordersTopic : inventoryTopic);
+  const procurementTopic = config.kafka.topics[2];
+  // This script owns the order and inventory topics only. Procurement is a real service, and
+  // finance is recognised by the read model from the events it consumes; neither is simulated here.
+  const topicFor = (e: Envelope) =>
+    e.event.eventType.startsWith('order.')
+      ? ordersTopic
+      : e.event.eventType.startsWith('inventory.')
+        ? inventoryTopic
+        : null;
 
   const kafka = new Kafka({ ...kafkaClientConfig(config.kafka), clientId: 'orderflow-simulator' });
   const admin = kafka.admin();
   await admin.connect();
   const created = await admin.createTopics({
-    // Same layout the services provision: each topic plus its dead-letter topic.
-    topics: [ordersTopic, inventoryTopic].flatMap((t) => [t, deadLetterTopicFor(t)]).map((topic) => ({
-      topic,
-      numPartitions: Number(args.partitions),
-    })),
+    // Same layout the services provision: each topic plus its dead-letter topic. Procurement is
+    // created but not written here, so the API can still start when only the simulator runs.
+    topics: [ordersTopic, inventoryTopic, ...(procurementTopic ? [procurementTopic] : [])]
+      .flatMap((t) => [t, deadLetterTopicFor(t)])
+      .map((topic) => ({
+        topic,
+        numPartitions: Number(args.partitions),
+      })),
   });
   await admin.disconnect();
-  if (created) console.log(`created topics for ${ordersTopic}, ${inventoryTopic}`);
+  if (created) console.log(`created topics for ${[ordersTopic, inventoryTopic, procurementTopic].filter(Boolean).join(', ')}`);
 
   const producer = kafka.producer({
     idempotent: true,
@@ -60,7 +71,9 @@ async function main(): Promise<void> {
   const send = async (batch: Envelope[]) => {
     const byTopic = new Map<string, Message[]>();
     for (const e of batch) {
-      const messages = byTopic.get(topicFor(e)) ?? [];
+      const topic = topicFor(e);
+      if (!topic) continue;
+      const messages = byTopic.get(topic) ?? [];
       const value = JSON.stringify(e.event);
       // Headers the services put on every message.
       const headers = { 'event-id': e.event.eventId, 'event-type': e.event.eventType };
@@ -68,7 +81,7 @@ async function main(): Promise<void> {
       // Simulate at-least-once redelivery and the odd malformed producer.
       if (rand() < duplicateRate) messages.push({ key: e.key, value, headers });
       if (rand() < invalidRate) messages.push({ key: e.key, value: '{"eventType":"order.placed"' });
-      byTopic.set(topicFor(e), messages);
+      byTopic.set(topic, messages);
     }
     if (byTopic.size === 0) return;
     await producer.sendBatch({

@@ -141,6 +141,63 @@ describe('partitionKeyOf', () => {
   });
 });
 
+describe('procurement events', () => {
+  // Shaped like Procurement.Service's records after System.Text.Json (camelCase, Guid strings).
+  const quote = {
+    eventId: 'c3a1f2e0-1111-4a2b-8c3d-4e5f60718293',
+    eventType: 'procurement.quote-received',
+    schemaVersion: 1,
+    correlationId: '8a95bc1d-459e-4f01-99a9-72ac582549d4',
+    causationId: null,
+    occurredAt: '2026-11-26T12:00:00+00:00',
+    payload: {
+      quoteId: 'd4b2e3f1-2222-4b3c-9d4e-5f6071829304',
+      sku: 'WEBCAM-HD',
+      supplierId: 'kiloparts',
+      supplierName: 'Kilo Parts',
+      unitCostCents: 5616,
+      leadTimeDays: 1,
+      moq: 3,
+      onTimeRate: 0.86,
+    },
+  };
+
+  it('parses a quote, a purchase order and a goods receipt from the service', () => {
+    const order = {
+      ...quote,
+      eventType: 'procurement.purchase-order-placed',
+      payload: {
+        purchaseOrderId: 'e5c3f4a2-3333-4c4d-ae5f-607182930415',
+        sku: 'WEBCAM-HD',
+        supplierId: 'kiloparts',
+        supplierName: 'Kilo Parts',
+        quantity: 12,
+        unitCostCents: 5616,
+        leadTimeDays: 1,
+      },
+    };
+    const receipt = {
+      ...quote,
+      eventType: 'procurement.goods-received',
+      payload: {
+        purchaseOrderId: 'e5c3f4a2-3333-4c4d-ae5f-607182930415',
+        sku: 'WEBCAM-HD',
+        quantity: 12,
+        unitCostCents: 5616,
+      },
+    };
+
+    expect(parseEvent(JSON.stringify(quote)).kind).toBe('event');
+    expect(parseEvent(JSON.stringify(order)).kind).toBe('event');
+    expect(parseEvent(JSON.stringify(receipt)).kind).toBe('event');
+  });
+
+  it('rejects a quote whose lead time is zero', () => {
+    const bad = { ...quote, payload: { ...quote.payload, leadTimeDays: 0 } };
+    expect(parseEvent(JSON.stringify(bad)).kind).toBe('invalid');
+  });
+});
+
 describe('toCents', () => {
   it.each([
     [0, 0],

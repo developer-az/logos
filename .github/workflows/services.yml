@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        service: [Order.Service, Inventory.Service]
+        service: [Order.Service, Inventory.Service, Procurement.Service]
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4

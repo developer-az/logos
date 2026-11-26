@@ -1,9 +1,10 @@
 # Order & Inventory event services
 
-Two .NET 10 services that run an order saga over Kafka:
+Three .NET 10 services that run the platform's sagas over Kafka:
 
 - **Order service** accepts orders over HTTP and confirms or rejects them based on inventory's answer.
-- **Inventory service** reserves stock all-or-nothing, releases it on cancellation, and publishes live stock levels.
+- **Inventory service** reserves stock all-or-nothing, releases it on cancellation, publishes live stock levels, and receives goods from procurement.
+- **Procurement service** quotes every SKU from three suppliers, raises purchase orders, and publishes the goods receipt when the lead time elapses.
 
 Event contracts for other consumers: [docs/events.md](docs/events.md).
 
@@ -18,6 +19,7 @@ docker compose up --build
 |---|---|
 | Order API (Swagger) | http://localhost:5001/swagger |
 | Inventory API (Swagger) | http://localhost:5002/swagger |
+| Procurement API (Swagger) | http://localhost:5003/swagger |
 | Kafka UI | http://localhost:8085 |
 | Kafka from the host | `localhost:9094` |
 
@@ -35,6 +37,14 @@ curl -s -X POST localhost:5001/orders -H 'Content-Type: application/json' \
 curl -s localhost:5001/orders/<id>          # Pending, then Confirmed or Rejected
 curl -s -X POST localhost:5001/orders/<id>/cancel -H 'Content-Type: application/json' -d '{}'
 curl -s -X PUT localhost:5002/inventory/MOUSE-01 -H 'Content-Type: application/json' -d '{"onHand":200}'
+
+# Restock WEBCAM-HD from a supplier, then order it again
+curl -s localhost:5003/procurement/suppliers | jq '.[] | select(.sku=="WEBCAM-HD")'
+curl -s -X POST localhost:5003/procurement/purchase-orders -H 'Content-Type: application/json' \
+  -d '{"sku":"WEBCAM-HD","supplierId":"kiloparts","quantity":12}'
+# Compose sets Procurement__DaySeconds=5, so the receipt lands in about 5 seconds.
+curl -s localhost:5003/procurement/purchase-orders | jq '.[0] | {status, expectedAt, receivedAt}'
+curl -s localhost:5002/inventory/WEBCAM-HD   # onHand rose by 12
 ```
 
 ## Test it
@@ -47,7 +57,8 @@ dotnet test
 |---|---|---|
 | `OrderPlatform.Messaging.Tests` | envelope format, outbox ordering and failure handling, retry and dead-lettering | nothing |
 | `Order.Service.Tests` | order rules, saga handler, HTTP API (idempotency, cancel, validation) | nothing (SQLite in memory) |
-| `Inventory.Service.Tests` | stock invariants, all-or-nothing reservation, release, out-of-order cancel, optimistic concurrency, HTTP API | nothing |
+| `Inventory.Service.Tests` | stock invariants, all-or-nothing reservation, release, out-of-order cancel, goods receipt, idempotent redelivery, optimistic concurrency, HTTP API | nothing |
+| `Procurement.Service.Tests` | purchase-order rules, supplier minimums, due receipts published once, quote/order API | nothing (SQLite in memory) |
 | `OrderPlatform.IntegrationTests` | full saga over real Kafka and PostgreSQL, event chain and correlation, 25 concurrent orders for 10 units | Docker (skipped without it) |
 
 ## Design
@@ -57,7 +68,8 @@ src/
   OrderPlatform.Contracts   event records, envelope, topic names (the only shared dependency)
   OrderPlatform.Messaging   outbox, inbox, Kafka producer/consumer, retries, dead-letter topics
   Order.Service             orders API + saga handler, own PostgreSQL database
-  Inventory.Service         stock API + reservation handler, own PostgreSQL database
+  Inventory.Service         stock API + reservation and goods-receipt handlers, own PostgreSQL database
+  Procurement.Service       supplier quotes + purchase orders + goods receipts, own PostgreSQL database
 ```
 
 Decisions and why:
@@ -67,17 +79,18 @@ Decisions and why:
 - **Per-order ordering.** Every saga event is keyed by order id. Inventory also leaves a marker if a cancellation ever arrives before its order, so a late `order.placed` cannot reserve stock for a cancelled order.
 - **No overselling.** Stock rows carry an optimistic concurrency token; two reservations racing on the same SKU cannot both commit, and the loser is retried against fresh stock. A database check constraint backs the `0 ≤ reserved ≤ onHand` invariant.
 - **Poison messages don't block a partition.** Handlers are retried with exponential backoff (`Kafka:MaxHandlerAttempts`), then the message goes to `<topic>.dlt` with its origin and error in headers.
-- **Choreography, not orchestration.** With two participants, each service reacting to the other's events is simpler than a central orchestrator; that choice is worth revisiting if payment or shipping joins the saga.
+- **One owner per fact.** Procurement raises a purchase order, but it never writes stock: the goods receipt is an event, and the inventory service applies it to on-hand stock. The receipt's status change and its outbox event commit in one transaction, and the purchase order carries a concurrency token, so two replicas polling at once cannot receive the same order twice.
+- **Choreography, not orchestration.** Each service reacts to the others' topics and publishes its own outcome. With three participants this is still simpler than a central orchestrator; that is worth revisiting if payment or shipping joins.
 
-Known simplifications: the client supplies unit prices (a catalog service would own them), confirmed reservations are not yet turned into shipments, and there is no authentication.
+Known simplifications: the client supplies unit prices (a catalog service would own them), supplier quotes are seeded from a static catalogue rather than integrated with suppliers, confirmed reservations are not yet turned into shipments, and there is no authentication.
 
 ## Configuration
 
 | Key | Default | Notes |
 |---|---|---|
-| `ConnectionStrings:Orders` / `ConnectionStrings:Inventory` | localhost PostgreSQL, no password | Supply the password outside source control: environment variables (`ConnectionStrings__Orders`), `dotnet user-secrets`, or a Kubernetes Secret |
+| `ConnectionStrings:Orders` / `ConnectionStrings:Inventory` / `ConnectionStrings:Procurement` | localhost PostgreSQL, no password | Supply the password outside source control: environment variables (`ConnectionStrings__Orders`), `dotnet user-secrets`, or a Kubernetes Secret |
 | `Kafka:BootstrapServers` | `localhost:9092` | |
-| `Kafka:GroupId` | `order-service` / `inventory-service` | |
+| `Kafka:GroupId` | `order-service` / `inventory-service` / `procurement-service` | |
 | `Kafka:SecurityProtocol` | `Plaintext` | `SaslSsl` in Kubernetes (Strimzi TLS listener) |
 | `Kafka:SaslMechanism` | `ScramSha512` | |
 | `Kafka:SaslUsername`, `Kafka:SaslPassword` | none | the service's KafkaUser and its Secret; never commit the password |
@@ -88,6 +101,8 @@ Known simplifications: the client supplies unit prices (a catalog service would 
 | `Kafka:OutboxPollInterval`, `Kafka:OutboxBatchSize` | 250 ms, 100 | |
 | `Database:MigrateOnStartup` | true | applies EF Core migrations |
 | `Inventory:SeedDemoData` | false (true in compose) | |
+| `Procurement:SeedDemoData` | false (true in compose) | publishes the demo catalogue's quotes on startup |
+| `Procurement:DaySeconds` | 86400 | one supplier day; compose sets 5 so a receipt can be watched |
 
 In-cluster example (environment variables on the Deployment, password from a Secret):
 
@@ -103,4 +118,4 @@ In-cluster example (environment variables on the Deployment, password from a Sec
 
 Health probes for Kubernetes: `/health/live` and `/health/ready` (checks the database).
 
-Schema changes: `dotnet tool restore && dotnet ef migrations add <Name> -p src/Order.Service -o Data/Migrations`.
+Schema changes: `dotnet tool restore && dotnet ef migrations add <Name> -p src/<Service> -o Data/Migrations`.

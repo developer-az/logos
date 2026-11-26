@@ -1,0 +1,98 @@
+# Procurement service: supplier quotes + purchase orders (services/src/Procurement.Service).
+# Kafka: Strimzi TLS listener with SCRAM-SHA-512 as KafkaUser "procurement-service"; Strimzi owns the
+# topics, so the service does not provision them. Database: its own "procurement" database and role.
+apiVersion: v1
+kind: Service
+metadata:
+  name: procurement-service
+  labels: { app.kubernetes.io/name: procurement-service }
+spec:
+  selector: { app.kubernetes.io/name: procurement-service }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: procurement-service
+  labels: { app.kubernetes.io/name: procurement-service, app.kubernetes.io/component: api }
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: { app.kubernetes.io/name: procurement-service }
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: procurement-service, app.kubernetes.io/component: api }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654 # "app" in the mcr.microsoft.com/dotnet/aspnet image
+        runAsGroup: 1654
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: { matchLabels: { app.kubernetes.io/name: procurement-service } }
+      containers:
+        - name: procurement-service
+          image: ghcr.io/developer-az/logos-procurement-service
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - name: PROCUREMENT_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: postgres-credentials, key: procurement-password } }
+            - name: ConnectionStrings__Procurement
+              value: Host=postgres;Database=procurement;Username=procurement;Password=$(PROCUREMENT_DB_PASSWORD)
+            - { name: Kafka__BootstrapServers, value: logos-kafka-kafka-bootstrap:9093 }
+            - { name: Kafka__SecurityProtocol, value: SaslSsl }
+            - { name: Kafka__SaslMechanism, value: ScramSha512 }
+            - { name: Kafka__SaslUsername, value: procurement-service }
+            - name: Kafka__SaslPassword
+              valueFrom: { secretKeyRef: { name: procurement-service, key: password } }
+            - { name: Kafka__SslCaLocation, value: /etc/kafka-ca/ca.crt }
+            - { name: Kafka__ProvisionTopics, value: "false" }
+            - { name: Procurement__SeedDemoData, value: "true" }
+            - { name: Procurement__DaySeconds, value: "5" }
+            - name: Kafka__ClientId
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: kafka-ca, mountPath: /etc/kafka-ca, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: logos-kafka-cluster-ca-cert
+            items: [{ key: ca.crt, path: ca.crt }]
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: procurement-service
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: procurement-service }

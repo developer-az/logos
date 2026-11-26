@@ -52,6 +52,14 @@ public sealed class StockItem
         Touch(now);
     }
 
+    /// <summary>Adds goods received from a supplier to the physical count.</summary>
+    public void Restock(int quantity, DateTimeOffset now)
+    {
+        if (quantity <= 0) throw new DomainException("Received quantity must be positive.");
+        OnHand += quantity;
+        Touch(now);
+    }
+
     private void Touch(DateTimeOffset now)
     {
         UpdatedAt = now;

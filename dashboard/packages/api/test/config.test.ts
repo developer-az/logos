@@ -8,12 +8,21 @@ describe('loadConfig', () => {
   it('has working local defaults', () => {
     const c = loadConfig({});
     expect(c.kafka.brokers).toEqual(['localhost:9092']);
-    expect(c.kafka.topics).toEqual(['orders.events.v1', 'inventory.events.v1']);
+    expect(c.kafka.topics).toEqual([
+      'orders.events.v1',
+      'inventory.events.v1',
+      'procurement.events.v1',
+    ]);
     expect(c.kafka.deadLetter?.('orders.events.v1')).toBe('orders.events.v1.dlt');
     expect(c.currency).toBe('USD');
     expect(c.kafka.sasl).toBeNull();
     expect(c.http).toEqual({ port: 8080, host: '0.0.0.0', staticDir: null, corsOrigins: [] });
     expect(c.kafka.tls).toBeNull();
+  });
+
+  it('can run without the procurement topic where the broker has no room for it', () => {
+    const c = loadConfig({ PROCUREMENT_TOPIC: '' });
+    expect(c.kafka.topics).toEqual(['orders.events.v1', 'inventory.events.v1']);
   });
 
   it('parses lists, numbers and booleans from strings', () => {

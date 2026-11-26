@@ -42,6 +42,13 @@ export function AboutPage() {
                 </td>
               </tr>
               <tr>
+                <th scope="row">Procurement service</th>
+                <td>
+                  C# / .NET 10. Quotes every SKU from three suppliers, raises purchase orders and
+                  publishes the goods receipt when the lead time elapses.
+                </td>
+              </tr>
+              <tr>
                 <th scope="row">Transport</th>
                 <td>
                   Kafka, one topic per service, keyed so one order&apos;s events stay ordered.
@@ -59,8 +66,8 @@ export function AboutPage() {
                 <th scope="row">This page</th>
                 <td>
                   React. The same contract parser and the same projection, running in the browser with
-                  a seeded simulator. Procurement and finance are simulated here; the C# services do
-                  not publish those topics yet.
+                  a seeded simulator. Orders, inventory and procurement come from the services when
+                  a backend is up; finance is simulated here.
                 </td>
               </tr>
             </tbody>

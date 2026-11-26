@@ -63,7 +63,7 @@ jobs:
           KEY_VAULT_CLIENT_ID: ${{ vars.KEY_VAULT_CLIENT_ID }}
         run: |
           printf 'DEMO_HOST=%s\nKEY_VAULT_URL=%s\nKEY_VAULT_CLIENT_ID=%s\n' "$DEMO_HOST" "$KEY_VAULT_URL" "$KEY_VAULT_CLIENT_ID" > demo.env
-          for app in order-service inventory-service dashboard; do
+          for app in order-service inventory-service procurement-service dashboard; do
             kustomize edit set image "ghcr.io/developer-az/logos-$app=ghcr.io/developer-az/logos-$app:$SHA"
           done
           kustomize build . > "$RUNNER_TEMP/rendered.yaml"
@@ -73,7 +73,7 @@ jobs:
       - name: Wait for the rollout
         run: |
           kubectl -n logos wait kafka/logos-kafka --for=condition=Ready --timeout=15m
-          for app in order-service inventory-service dashboard load-generator; do
+          for app in order-service inventory-service procurement-service dashboard load-generator; do
             kubectl -n logos rollout status "deploy/$app" --timeout=10m
           done
       - name: Smoke test
@@ -81,7 +81,7 @@ jobs:
       - name: Roll back the apps
         if: failure()
         run: |
-          for app in order-service inventory-service dashboard; do
+          for app in order-service inventory-service procurement-service dashboard; do
             kubectl -n logos rollout undo "deploy/$app" || true
           done
           kubectl -n logos get pods
