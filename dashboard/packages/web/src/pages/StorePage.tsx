@@ -40,7 +40,7 @@ export function StorePage({
       <section className="card" aria-labelledby="catalogue-title">
         <h2 id="catalogue-title">Catalogue</h2>
         <p className="card-hint">
-          {catalog.length} SKUs, prices from the order simulator and stock from the read model.
+          {catalog.length} SKUs. Prices come from the catalogue; stock from the read model.
         </p>
         {catalog.length === 0 ? (
           <p className="empty">No stock is being reported.</p>
