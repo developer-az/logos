@@ -21,6 +21,7 @@ jobs:
           - { name: order-service, context: services, build-args: SERVICE=Order.Service }
           - { name: inventory-service, context: services, build-args: SERVICE=Inventory.Service }
           - { name: procurement-service, context: services, build-args: SERVICE=Procurement.Service }
+          - { name: finance-service, context: services, build-args: SERVICE=Finance.Service }
           - { name: dashboard, context: dashboard, build-args: "" }
     steps:
       - uses: actions/checkout@v7

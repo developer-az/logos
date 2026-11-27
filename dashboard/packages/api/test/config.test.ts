@@ -12,6 +12,7 @@ describe('loadConfig', () => {
       'orders.events.v1',
       'inventory.events.v1',
       'procurement.events.v1',
+      'finance.events.v1',
     ]);
     expect(c.kafka.deadLetter?.('orders.events.v1')).toBe('orders.events.v1.dlt');
     expect(c.currency).toBe('USD');
@@ -21,7 +22,7 @@ describe('loadConfig', () => {
   });
 
   it('can run without the procurement topic where the broker has no room for it', () => {
-    const c = loadConfig({ PROCUREMENT_TOPIC: '' });
+    const c = loadConfig({ PROCUREMENT_TOPIC: '', FINANCE_TOPIC: '' });
     expect(c.kafka.topics).toEqual(['orders.events.v1', 'inventory.events.v1']);
   });
 

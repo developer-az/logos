@@ -82,8 +82,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       LOW_STOCK_THRESHOLD: "5"
       # Aiven's free tier caps topics, so this deployment runs orders and inventory only; the
-      # dashboard stops waiting for a procurement topic nobody creates here.
+      # dashboard stops waiting for procurement and finance topics nobody creates here.
       PROCUREMENT_TOPIC: ""
+      FINANCE_TOPIC: ""
       NODE_OPTIONS: --max-old-space-size=160
     volumes:
       - ./kafka:/kafka:ro

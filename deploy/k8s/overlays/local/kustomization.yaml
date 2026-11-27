@@ -11,11 +11,13 @@ images:
   - { name: ghcr.io/developer-az/logos-order-service, newTag: dev }
   - { name: ghcr.io/developer-az/logos-inventory-service, newTag: dev }
   - { name: ghcr.io/developer-az/logos-procurement-service, newTag: dev }
+  - { name: ghcr.io/developer-az/logos-finance-service, newTag: dev }
   - { name: ghcr.io/developer-az/logos-dashboard, newTag: dev }
 replicas:
   - { name: order-service, count: 1 }
   - { name: inventory-service, count: 1 }
   - { name: procurement-service, count: 1 }
+  - { name: finance-service, count: 1 }
   - { name: dashboard, count: 1 }
 patches:
   # A single broker: replication factors and min ISR of 1, smaller disk.

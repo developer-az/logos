@@ -49,6 +49,13 @@ export function AboutPage() {
                 </td>
               </tr>
               <tr>
+                <th scope="row">Finance service</th>
+                <td>
+                  C# / .NET 10. Reads order outcomes, captures the charge with its standard cost and
+                  refunds a cancelled order. Integer cents, idempotent per order.
+                </td>
+              </tr>
+              <tr>
                 <th scope="row">Transport</th>
                 <td>
                   Kafka, one topic per service, keyed so one order&apos;s events stay ordered.
@@ -66,8 +73,8 @@ export function AboutPage() {
                 <th scope="row">This page</th>
                 <td>
                   React. The same contract parser and the same projection, running in the browser with
-                  a seeded simulator. Orders, inventory and procurement come from the services when
-                  a backend is up; finance is simulated here.
+                  a seeded simulator. Every service's events run through that one path, so the demo
+                  and the live deployment render the same read model.
                 </td>
               </tr>
             </tbody>

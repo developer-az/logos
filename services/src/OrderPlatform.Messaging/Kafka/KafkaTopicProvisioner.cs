@@ -10,7 +10,7 @@ namespace OrderPlatform.Messaging.Kafka;
 /// <summary>Creates the platform topics (and their dead-letter topics) before consumers start.</summary>
 public sealed class KafkaTopicProvisioner(IOptions<KafkaOptions> options, ILogger<KafkaTopicProvisioner> logger) : IHostedService
 {
-    private static readonly string[] BaseTopics = [Topics.OrderEvents, Topics.InventoryEvents, Topics.ProcurementEvents];
+    private static readonly string[] BaseTopics = [Topics.OrderEvents, Topics.InventoryEvents, Topics.ProcurementEvents, Topics.FinanceEvents];
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
