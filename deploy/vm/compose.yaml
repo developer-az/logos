@@ -101,6 +101,19 @@ services:
       kafka: { condition: service_healthy }
       postgres: { condition: service_healthy }
 
+  finance-service:
+    <<: *restart
+    build: { context: ../../services, args: { SERVICE: Finance.Service } }
+    image: logos-finance-service:local
+    pull_policy: build
+    mem_limit: 320m
+    environment:
+      ConnectionStrings__Finance: Host=postgres;Database=finance;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Kafka__BootstrapServers: kafka:9092
+    depends_on:
+      kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
   dashboard:
     <<: *restart
     build: { context: ../../dashboard }
@@ -116,6 +129,7 @@ services:
       order-service: { condition: service_started }
       inventory-service: { condition: service_started }
       procurement-service: { condition: service_started }
+      finance-service: { condition: service_started }
 
   # Same script as deploy/k8s/apps/load-generator.yaml: real orders through the order API, so
   # every event on the dashboard comes out of the C# saga. `docker compose stop load-generator`

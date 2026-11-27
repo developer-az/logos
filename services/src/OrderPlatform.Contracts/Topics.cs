@@ -7,6 +7,7 @@ public static class Topics
     public const string OrderEvents = "orders.events.v1";
     public const string InventoryEvents = "inventory.events.v1";
     public const string ProcurementEvents = "procurement.events.v1";
+    public const string FinanceEvents = "finance.events.v1";
 
     /// <summary>Dead-letter topic for a source topic: messages that failed every retry.</summary>
     public static string DeadLetter(string topic) => $"{topic}.dlt";

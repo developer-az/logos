@@ -1,10 +1,11 @@
-# Order & Inventory event services
+# Order, Inventory, Procurement & Finance services
 
-Three .NET 10 services that run the platform's sagas over Kafka:
+Four .NET 10 services that run the platform's sagas over Kafka:
 
 - **Order service** accepts orders over HTTP and confirms or rejects them based on inventory's answer.
 - **Inventory service** reserves stock all-or-nothing, releases it on cancellation, publishes live stock levels, and receives goods from procurement.
 - **Procurement service** quotes every SKU from three suppliers, raises purchase orders, and publishes the goods receipt when the lead time elapses.
+- **Finance service** records each order's amount and standard cost, captures on confirmation, and refunds on a later cancellation.
 
 Event contracts for other consumers: [docs/events.md](docs/events.md).
 
@@ -20,6 +21,7 @@ docker compose up --build
 | Order API (Swagger) | http://localhost:5001/swagger |
 | Inventory API (Swagger) | http://localhost:5002/swagger |
 | Procurement API (Swagger) | http://localhost:5003/swagger |
+| Finance API (Swagger) | http://localhost:5004/swagger |
 | Kafka UI | http://localhost:8085 |
 | Kafka from the host | `localhost:9094` |
 
@@ -45,6 +47,10 @@ curl -s -X POST localhost:5003/procurement/purchase-orders -H 'Content-Type: app
 # Compose sets Procurement__DaySeconds=5, so the receipt lands in about 5 seconds.
 curl -s localhost:5003/procurement/purchase-orders | jq '.[0] | {status, expectedAt, receivedAt}'
 curl -s localhost:5002/inventory/WEBCAM-HD   # onHand rose by 12
+
+# Money: a confirmed order is captured with its standard cost
+curl -s localhost:5004/finance/summary
+curl -s localhost:5004/finance/settlements/<orderId>
 ```
 
 ## Test it
@@ -59,6 +65,7 @@ dotnet test
 | `Order.Service.Tests` | order rules, saga handler, HTTP API (idempotency, cancel, validation) | nothing (SQLite in memory) |
 | `Inventory.Service.Tests` | stock invariants, all-or-nothing reservation, release, out-of-order cancel, goods receipt, idempotent redelivery, optimistic concurrency, HTTP API | nothing |
 | `Procurement.Service.Tests` | purchase-order rules, supplier minimums, due receipts published once, quote/order API | nothing (SQLite in memory) |
+| `Finance.Service.Tests` | settlement transitions, capture/refund/cancel, duplicate confirmation, summary arithmetic, HTTP API | nothing |
 | `OrderPlatform.IntegrationTests` | full saga over real Kafka and PostgreSQL, event chain and correlation, 25 concurrent orders for 10 units | Docker (skipped without it) |
 
 ## Design
@@ -70,6 +77,7 @@ src/
   Order.Service             orders API + saga handler, own PostgreSQL database
   Inventory.Service         stock API + reservation and goods-receipt handlers, own PostgreSQL database
   Procurement.Service       supplier quotes + purchase orders + goods receipts, own PostgreSQL database
+  Finance.Service           order settlements, captures and refunds, own PostgreSQL database
 ```
 
 Decisions and why:
@@ -79,18 +87,19 @@ Decisions and why:
 - **Per-order ordering.** Every saga event is keyed by order id. Inventory also leaves a marker if a cancellation ever arrives before its order, so a late `order.placed` cannot reserve stock for a cancelled order.
 - **No overselling.** Stock rows carry an optimistic concurrency token; two reservations racing on the same SKU cannot both commit, and the loser is retried against fresh stock. A database check constraint backs the `0 ≤ reserved ≤ onHand` invariant.
 - **Poison messages don't block a partition.** Handlers are retried with exponential backoff (`Kafka:MaxHandlerAttempts`), then the message goes to `<topic>.dlt` with its origin and error in headers.
-- **One owner per fact.** Procurement raises a purchase order, but it never writes stock: the goods receipt is an event, and the inventory service applies it to on-hand stock. The receipt's status change and its outbox event commit in one transaction, and the purchase order carries a concurrency token, so two replicas polling at once cannot receive the same order twice.
-- **Choreography, not orchestration.** Each service reacts to the others' topics and publishes its own outcome. With three participants this is still simpler than a central orchestrator; that is worth revisiting if payment or shipping joins.
+- **One owner per fact.** Procurement raises a purchase order, but it never writes stock: the goods receipt is an event, and the inventory service applies it to on-hand stock. The receipt's status change and its outbox event commit in one transaction, and the purchase order carries a concurrency token, so two replicas polling at once cannot receive the same order twice. Finance follows the same rule: it reads order outcomes and writes money, never order state.
+- **Standard cost, not negotiated cost.** Finance values goods at a standard cost per SKU, so a capture carries its own margin. Procurement's negotiated prices are a purchasing variance, reconciled separately; coupling them would make the ledger depend on which supplier happened to deliver.
+- **Choreography, not orchestration.** Each service reacts to the others' topics and publishes its own outcome. With four participants this is still simpler than a central orchestrator; that is worth revisiting if shipping joins.
 
-Known simplifications: the client supplies unit prices (a catalog service would own them), supplier quotes are seeded from a static catalogue rather than integrated with suppliers, confirmed reservations are not yet turned into shipments, and there is no authentication.
+Known simplifications: the client supplies unit prices (a catalog service would own them), supplier quotes are seeded from a static catalogue rather than integrated with suppliers, standard costs are a fixed table, confirmed reservations are not yet turned into shipments, and there is no authentication.
 
 ## Configuration
 
 | Key | Default | Notes |
 |---|---|---|
-| `ConnectionStrings:Orders` / `ConnectionStrings:Inventory` / `ConnectionStrings:Procurement` | localhost PostgreSQL, no password | Supply the password outside source control: environment variables (`ConnectionStrings__Orders`), `dotnet user-secrets`, or a Kubernetes Secret |
+| `ConnectionStrings:Orders` / `ConnectionStrings:Inventory` / `ConnectionStrings:Procurement` / `ConnectionStrings:Finance` | localhost PostgreSQL, no password | Supply the password outside source control: environment variables (`ConnectionStrings__Orders`), `dotnet user-secrets`, or a Kubernetes Secret |
 | `Kafka:BootstrapServers` | `localhost:9092` | |
-| `Kafka:GroupId` | `order-service` / `inventory-service` / `procurement-service` | |
+| `Kafka:GroupId` | `order-service` / `inventory-service` / `procurement-service` / `finance-service` | |
 | `Kafka:SecurityProtocol` | `Plaintext` | `SaslSsl` in Kubernetes (Strimzi TLS listener) |
 | `Kafka:SaslMechanism` | `ScramSha512` | |
 | `Kafka:SaslUsername`, `Kafka:SaslPassword` | none | the service's KafkaUser and its Secret; never commit the password |

@@ -34,6 +34,7 @@ async function main(): Promise<void> {
   const rand = mulberry32(seed + 1);
   const [ordersTopic, inventoryTopic] = config.kafka.topics as [string, string];
   const procurementTopic = config.kafka.topics[2];
+  const financeTopic = config.kafka.topics[3];
   // This script owns the order and inventory topics only. Procurement is a real service, and
   // finance is recognised by the read model from the events it consumes; neither is simulated here.
   const topicFor = (e: Envelope) =>
@@ -47,9 +48,9 @@ async function main(): Promise<void> {
   const admin = kafka.admin();
   await admin.connect();
   const created = await admin.createTopics({
-    // Same layout the services provision: each topic plus its dead-letter topic. Procurement is
-    // created but not written here, so the API can still start when only the simulator runs.
-    topics: [ordersTopic, inventoryTopic, ...(procurementTopic ? [procurementTopic] : [])]
+    // Same layout the services provision: each topic plus its dead-letter topic. Procurement and
+    // finance are created but not written here, so the API can still start when only the simulator runs.
+    topics: [ordersTopic, inventoryTopic, ...(procurementTopic ? [procurementTopic] : []), ...(financeTopic ? [financeTopic] : [])]
       .flatMap((t) => [t, deadLetterTopicFor(t)])
       .map((topic) => ({
         topic,
@@ -57,7 +58,7 @@ async function main(): Promise<void> {
       })),
   });
   await admin.disconnect();
-  if (created) console.log(`created topics for ${[ordersTopic, inventoryTopic, procurementTopic].filter(Boolean).join(', ')}`);
+  if (created) console.log(`created topics for ${[ordersTopic, inventoryTopic, procurementTopic, financeTopic].filter(Boolean).join(', ')}`);
 
   const producer = kafka.producer({
     idempotent: true,

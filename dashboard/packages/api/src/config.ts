@@ -38,6 +38,8 @@ const EnvSchema = z.object({
   INVENTORY_TOPIC: z.string().default(TOPICS.inventory),
   /** Procurement quotes and purchase orders; published by the procurement service. Empty disables it. */
   PROCUREMENT_TOPIC: z.string().default(TOPICS.procurement),
+  /** Captures and refunds; published by the finance service. Empty disables it. */
+  FINANCE_TOPIC: z.string().default(TOPICS.finance),
   /**
    * Forward invalid messages to `<source topic>.dlt`, the platform's dead-letter convention.
    * When false they are only counted and logged.
@@ -108,6 +110,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
         e.ORDERS_TOPIC,
         e.INVENTORY_TOPIC,
         ...(e.PROCUREMENT_TOPIC ? [e.PROCUREMENT_TOPIC] : []),
+        ...(e.FINANCE_TOPIC ? [e.FINANCE_TOPIC] : []),
       ],
       deadLetter: e.DEAD_LETTER_ENABLED ? deadLetterTopicFor : null,
     },

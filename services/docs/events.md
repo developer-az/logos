@@ -9,6 +9,7 @@ The services talk only through Kafka. This page is the contract for any other co
 | `orders.events.v1` | order-service | order id | 3 |
 | `inventory.events.v1` | inventory-service | order id, or SKU for `inventory.stock-level-changed` | 3 |
 | `procurement.events.v1` | procurement-service | SKU | 3 |
+| `finance.events.v1` | finance-service | order id | 3 |
 | `<topic>.dlt` | any consumer | original key | 3 |
 
 Keying by order id puts every event of one order on one partition, so consumers see them in the order they were produced. Topics are created at service startup (`Kafka:ProvisionTopics`); broker auto-creation is off in docker-compose.
@@ -67,6 +68,16 @@ receipts stay in order.
 | `procurement.purchase-order-placed` | `{ purchaseOrderId, sku, supplierId, supplierName, quantity, unitCostCents, leadTimeDays }` |
 | `procurement.goods-received` | `{ purchaseOrderId, sku, quantity, unitCostCents }` |
 
+### finance.events.v1
+
+Money is integer cents. A capture carries the standard cost of the goods sold, so margin is a
+property of the event rather than a later join.
+
+| eventType | payload |
+|---|---|
+| `finance.payment-captured` | `{ orderId, amountCents, costCents }` |
+| `finance.refund-issued` | `{ orderId, amountCents, costCents }` |
+
 ## Saga
 
 ```
@@ -92,3 +103,18 @@ POST /procurement/purchase-orders ──► procurement.purchase-order-placed
 
 The quote events are published when the catalogue is seeded; a supplier integration would replace
 that seeder without changing the contract.
+
+## Settling an order
+
+Finance consumes order outcomes and writes money. It sees the lines from `order.placed`, charges
+on `order.confirmed`, and reverses on a later cancellation. A cancellation before confirmation
+moves nothing.
+
+```
+order.placed ──► finance records the amount and the standard cost (no event)
+order.confirmed ──► finance.payment-captured
+order.cancelled (after confirmation) ──► finance.refund-issued
+```
+
+Standard cost per SKU is finance's own basis, kept separate from procurement's negotiated prices;
+a purchase-price variance would be reconciled outside these events.

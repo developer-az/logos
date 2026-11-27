@@ -36,7 +36,7 @@ jobs:
         run: |
           kubectl get pods -A -o wide
           kubectl -n logos get kafka,kafkanodepool,kafkatopic,kafkauser,events --sort-by=.lastTimestamp || true
-          for d in order-service inventory-service procurement-service dashboard load-generator; do
+          for d in order-service inventory-service procurement-service finance-service dashboard load-generator; do
             echo "::group::logs $d"; kubectl -n logos logs "deploy/$d" --all-containers --tail=200 || true; echo "::endgroup::"
           done
           kubectl -n strimzi logs deploy/strimzi-cluster-operator --tail=200 || true

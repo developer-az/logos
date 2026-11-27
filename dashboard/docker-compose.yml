@@ -19,6 +19,7 @@ services:
       order-service: { condition: service_started }
       inventory-service: { condition: service_started }
       procurement-service: { condition: service_started }
+      finance-service: { condition: service_started }
 
   simulator:
     profiles: [simulator]

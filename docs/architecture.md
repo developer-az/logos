@@ -11,16 +11,21 @@ flowchart LR
   IT --> O
   P[procurement-service<br/>C# .NET] -- outbox --> PT[(procurement.events.v1<br/>key = SKU)]
   PT --> I
+  F[finance-service<br/>C# .NET] -- outbox --> FT[(finance.events.v1<br/>key = orderId)]
+  OT --> F
   O --- OP[(PostgreSQL<br/>orders)]
   I --- IP[(PostgreSQL<br/>inventory)]
   P --- PP[(PostgreSQL<br/>procurement)]
+  F --- FP[(PostgreSQL<br/>finance)]
   OT --> D[dashboard API<br/>TypeScript]
   IT --> D
   PT --> D
+  FT --> D
   D -- WebSocket/SSE --> UI[Live UI]
   OT -. failed handling .-> DLT[(*.dlt)]
   IT -. failed handling .-> DLT
   PT -. failed handling .-> DLT
+  FT -. failed handling .-> DLT
 ```
 
 Contract, payloads and the saga sequence are defined in `services/docs/events.md`; this page doesn't repeat them.
@@ -29,7 +34,7 @@ Contract, payloads and the saga sequence are defined in `services/docs/events.md
 
 | Tech | Role | Why it is the right tool here, not just a checkbox |
 |---|---|---|
-| **C#** | Order, inventory and procurement services | Transactional work with EF Core + PostgreSQL; outbox/inbox give exactly-once effects on top of at-least-once delivery |
+| **C#** | Order, inventory, procurement and finance services | Transactional work with EF Core + PostgreSQL; outbox/inbox give exactly-once effects on top of at-least-once delivery |
 | **Kafka** | Only channel between services | Durable, replayable, per-order ordering by key; lets the dashboard and add-ons consume without touching the services |
 | **TypeScript + Jest** | Dashboard API + UI | Folds `inventory.stock-level-changed` (keep highest `version` per SKU) and order events into live views; Jest covers the projection logic and HTTP/WebSocket layer |
 | **Kubernetes** | Runtime | Strimzi runs Kafka declaratively (topics, SCRAM users, ACLs as YAML); services get probes, PDBs, rolling deploys |
@@ -39,7 +44,7 @@ Contract, payloads and the saga sequence are defined in `services/docs/events.md
 
 ```
 logos/
-  services/                 C# solution (plan step 2): Contracts, Messaging, Order.Service, Inventory.Service, Procurement.Service, tests
+  services/                 C# solution (plan step 2): Contracts, Messaging, Order.Service, Inventory.Service, Procurement.Service, Finance.Service, tests
     docs/events.md          event contract, source of truth
   dashboard/                TypeScript API + UI, Jest (plan step 3)
   deploy/k8s/
@@ -59,4 +64,4 @@ logos/
 - **Kafka auth.** The Strimzi cluster listens on TLS 9093 with SCRAM-SHA-512. The services' `Kafka:SecurityProtocol=SaslSsl`, `SaslUsername`/`SaslPassword` (KafkaUser `order-service` / `inventory-service` and its Secret) and `SslCaLocation` (`logos-kafka-cluster-ca-cert`, key `ca.crt`) connect them; see `services/README.md`.
 - **Topic ownership.** Services auto-provision topics at startup, which suits compose. In-cluster, Strimzi `KafkaTopic` CRs own them, so deploy sets `Kafka:ProvisionTopics=false`.
 - **"Works in the real world"** needs a public demo: an ingress with TLS, a load generator that places realistic orders, and dashboards showing consumer lag and DLT volume. These are stories in E4 and E5.
-- **Finance is the last simulated context.** Procurement, orders and inventory are real services; `finance.payment-captured` and `finance.refund-issued` are produced by the simulator and folded by the dashboard, and the About page labels it. A finance service consuming `order.confirmed` and `order.cancelled` is the next step.
+- **Finance values goods at standard cost.** A capture carries its own cost of goods, so margin is a property of the event. Negotiated supplier prices stay in procurement; the difference is a purchasing variance, not a revenue adjustment.

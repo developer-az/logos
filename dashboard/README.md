@@ -11,15 +11,14 @@ broker.
 |---|---|---|
 | `#/` | Store: catalogue, cart, checkout | Simulator (demo) |
 | `#/sourcing` | Supplier comparison, purchase orders, goods receipt | Procurement service (C#) |
-| `#/finance` | Captures, refunds, cost of goods, reconciliation | Simulated finance events |
+| `#/finance` | Captures, refunds, cost of goods, reconciliation | Finance service (C#) |
 | `#/incidents` | Duplicate, malformed and replayed messages | The projection's real counters |
 | `#/ops` | Live orders, stock, throughput, one order's saga | Kafka through the API |
 | `#/about` | What is real, what breaks, and why | Static |
 
-Orders, inventory, procurement and finance are four topics. The C# services produce orders,
-inventory and procurement; finance is produced by the simulator and folded by the same projection.
-The sourcing page therefore runs against the real procurement service when a backend is up, and
-falls back to the simulator with everything else. The About page says what is real.
+Orders, inventory, procurement and finance are four topics. The four C# services produce them; the
+public build runs the same contracts, projection and simulator in the browser. The sourcing and
+finance pages therefore read the real services when a backend is up, and the simulator otherwise.
 
 ![Dashboard](docs/dashboard-desktop.png)
 

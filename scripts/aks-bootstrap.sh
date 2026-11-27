@@ -45,7 +45,7 @@ VAULT_ID=$(az keyvault show -n "$KEY_VAULT" --query id -o tsv)
 VAULT_URL=$(az keyvault show -n "$KEY_VAULT" --query properties.vaultUri -o tsv)
 az role assignment create --assignee-object-id "$ME" --assignee-principal-type User \
   --role "Key Vault Secrets Officer" --scope "$VAULT_ID" -o none 2>/dev/null || true
-for name in logos-postgres-password logos-orders-db-password logos-inventory-db-password logos-procurement-db-password; do
+for name in logos-postgres-password logos-orders-db-password logos-inventory-db-password logos-procurement-db-password logos-finance-db-password; do
   if ! az keyvault secret show --vault-name "$KEY_VAULT" -n "$name" >/dev/null 2>&1; then
     # Role assignments can take a minute to apply; retry the first write.
     for attempt in 1 2 3 4 5 6; do
