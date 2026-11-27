@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { DEMO_LEAD_TIME_DAY_MS, type DashboardSnapshot, type SupplierQuote } from '@orderflow/contracts';
+import { type DashboardSnapshot, type SupplierQuote } from '@orderflow/contracts';
 import { productName } from '../lib/catalogue';
 import type { CatalogItem, CommerceActions } from '../lib/commerce';
-import { formatAgo, formatDuration, formatMoney, formatPercent } from '../lib/format';
+import { formatAgo, formatMoney, formatPercent } from '../lib/format';
 
 type Notice = { tone: 'ok' | 'error'; text: string } | null;
 
@@ -110,8 +110,8 @@ export function SourcingPage({
                     Supplier quotes{sku ? ` · ${productName(sku)}` : ''}
                   </h2>
                   <p className="card-hint">
-                    Landed cost is unit cost × quantity. Lead time is compressed in this demo:
-                    one supplier day is {formatDuration(DEMO_LEAD_TIME_DAY_MS)}.
+                    Landed cost is unit cost × quantity. Lead time is the supplier's, in days; the
+                    receipt arrives when it elapses.
                   </p>
                 </div>
               </div>
@@ -278,10 +278,7 @@ export function SourcingPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {orders.map((po) => {
-                      const expectedAt =
-                        Date.parse(po.placedAt) + po.leadTimeDays * DEMO_LEAD_TIME_DAY_MS;
-                      return (
+                    {orders.map((po) => (
                         <tr key={po.purchaseOrderId}>
                           <td className="stack-sku">
                             <span className="product-name">{productName(po.sku)}</span>
@@ -300,13 +297,12 @@ export function SourcingPage({
                               <span className="pill pill-confirmed">Received</span>
                             ) : (
                               <span className="pill pill-placed">
-                                In transit · {formatDuration(Math.max(0, expectedAt - now.getTime()))}
+                                In transit · {po.leadTimeDays} d
                               </span>
                             )}
                           </td>
                         </tr>
-                      );
-                    })}
+                    ))}
                   </tbody>
                 </table>
               )}

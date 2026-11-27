@@ -13,6 +13,7 @@ import type { Metrics } from '../metrics';
 import type { Projection } from '../projection/projection';
 import { CatchUpTracker, type PartitionRange } from './catch-up';
 import { createMessageHandler, type DeadLetter } from './handler';
+import { retryRetriable } from './retry';
 
 export interface Logger {
   info: (obj: object, msg: string) => void;
@@ -84,7 +85,14 @@ export async function startConsumer(opts: {
     await waitForTopics(admin, config.topics, log, opts.signal);
     const ranges: PartitionRange[] = [];
     for (const topic of config.topics) {
-      for (const p of await admin.fetchTopicOffsets(topic)) {
+      // Kafka can still be electing a partition leader right after the topic appears; the admin
+      // call answers NOT_LEADER, which is retriable and must not kill the consumer at startup.
+      const offsets = await retryRetriable(
+        `fetching offsets for ${topic}`,
+        () => admin.fetchTopicOffsets(topic),
+        { log, signal: opts.signal },
+      );
+      for (const p of offsets) {
         ranges.push({ topic, partition: p.partition, low: p.low, high: p.high });
       }
     }

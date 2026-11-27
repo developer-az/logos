@@ -54,7 +54,7 @@ export function CartPage({
       <div className="title-row">
         <div>
           <h1>Cart</h1>
-          <p className="sub">Checkout places a real order through the simulator's saga.</p>
+          <p className="sub">Checkout places a real order. Its events come back through the read model.</p>
         </div>
         <a className="quiet-button" href="#/">
           Back to store
@@ -176,8 +176,8 @@ export function CartPage({
       </section>
 
       <p className="consumer">
-        Checkout is a demo write path: the order is validated, published through the same contracts
-        and folded by the same read model as every simulated order.
+        Checkout goes to the order service when one is configured, or to the simulator in the
+        public demo. The resulting events come back through the same read model as everything else.
       </p>
     </>
   );
