@@ -15,6 +15,7 @@ images:
   - { name: ghcr.io/developer-az/logos-inventory-service, newTag: latest }
   - { name: ghcr.io/developer-az/logos-procurement-service, newTag: latest }
   - { name: ghcr.io/developer-az/logos-finance-service, newTag: latest }
+  - { name: ghcr.io/developer-az/logos-catalog-service, newTag: latest }
   - { name: ghcr.io/developer-az/logos-dashboard, newTag: latest }
 configMapGenerator:
   - name: demo-settings

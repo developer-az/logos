@@ -15,6 +15,13 @@ export type PlaceOrderResult =
 /** A write that does not hand back an id the page has to follow. */
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string };
 
+/** A product as the catalogue service publishes it (prices in integer cents). */
+export interface CatalogProduct {
+  sku: string;
+  name: string;
+  priceCents: number;
+}
+
 /** The demo writes synchronously; a live write goes over the network. Pages await either. */
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -22,6 +29,8 @@ export interface CommerceActions {
   /** Set when the current data source cannot write at all. */
   unavailableReason?: string;
   catalog(): CatalogItem[];
+  /** Live only: the catalogue service's shelf prices, for display. */
+  fetchCatalog?(): Promise<CatalogProduct[]>;
   placeOrder(lines: Array<{ sku: string; quantity: number }>): MaybePromise<PlaceOrderResult>;
   /** Raises a purchase order; the goods receipt follows after the supplier's lead time. */
   placePurchaseOrder(sku: string, supplierId: string, quantity: number): MaybePromise<ActionResult>;

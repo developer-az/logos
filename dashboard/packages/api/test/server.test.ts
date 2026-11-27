@@ -161,6 +161,31 @@ describe('write proxies', () => {
     expect(res.json().error).toBe('write API unreachable');
   });
 
+  it('forwards the catalogue read so the page can show charged prices', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify([{ sku: 'MOUSE-01', name: 'Nimbus', priceCents: 2950 }]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const { app } = setup({ catalogServiceUrl: 'http://catalog:8080', fetch: fetchMock as unknown as typeof fetch });
+
+    const res = await app.inject('/api/catalog');
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([{ sku: 'MOUSE-01', name: 'Nimbus', priceCents: 2950 }]);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://catalog:8080/catalog');
+    expect(init.method).toBe('GET');
+  });
+
+  it('reports a catalogue that is not configured', async () => {
+    const { app } = setup();
+    const res = await app.inject('/api/catalog');
+    expect(res.statusCode).toBe(503);
+    expect(res.json().error).toBe('catalog is not configured');
+  });
+
   it('allows a cross-origin preflight for writes', async () => {
     const { app } = setup({ corsOrigins: ['https://demo.example'] });
     const res = await app.inject({

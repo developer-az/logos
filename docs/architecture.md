@@ -13,10 +13,13 @@ flowchart LR
   PT --> I
   F[finance-service<br/>C# .NET] -- outbox --> FT[(finance.events.v1<br/>key = orderId)]
   OT --> F
+  CAT[catalog-service<br/>C# .NET] -- HTTP --> O
+  CAT -- HTTP --> D
   O --- OP[(PostgreSQL<br/>orders)]
   I --- IP[(PostgreSQL<br/>inventory)]
   P --- PP[(PostgreSQL<br/>procurement)]
   F --- FP[(PostgreSQL<br/>finance)]
+  CAT --- CP[(PostgreSQL<br/>catalog)]
   OT --> D[dashboard API<br/>TypeScript]
   IT --> D
   PT --> D
@@ -34,7 +37,7 @@ Contract, payloads and the saga sequence are defined in `services/docs/events.md
 
 | Tech | Role | Why it is the right tool here, not just a checkbox |
 |---|---|---|
-| **C#** | Order, inventory, procurement and finance services | Transactional work with EF Core + PostgreSQL; outbox/inbox give exactly-once effects on top of at-least-once delivery |
+| **C#** | Order, inventory, procurement, finance and catalog services | Transactional work with EF Core + PostgreSQL; outbox/inbox give exactly-once effects on top of at-least-once delivery |
 | **Kafka** | Only channel between services | Durable, replayable, per-order ordering by key; lets the dashboard and add-ons consume without touching the services |
 | **TypeScript + Jest** | Dashboard API + UI | Folds `inventory.stock-level-changed` (keep highest `version` per SKU) and order events into live views; Jest covers the projection logic and HTTP/WebSocket layer |
 | **Kubernetes** | Runtime | Strimzi runs Kafka declaratively (topics, SCRAM users, ACLs as YAML); services get probes, PDBs, rolling deploys |
@@ -44,7 +47,7 @@ Contract, payloads and the saga sequence are defined in `services/docs/events.md
 
 ```
 logos/
-  services/                 C# solution (plan step 2): Contracts, Messaging, Order.Service, Inventory.Service, Procurement.Service, Finance.Service, tests
+  services/                 C# solution (plan step 2): Contracts, Messaging, Order.Service, Inventory.Service, Procurement.Service, Finance.Service, Catalog.Service, tests
     docs/events.md          event contract, source of truth
   dashboard/                TypeScript API + UI, Jest (plan step 3)
   deploy/k8s/

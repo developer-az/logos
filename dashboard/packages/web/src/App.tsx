@@ -37,6 +37,7 @@ export function App({
   const route = useHashRoute();
   const [cart, setCart] = useState<Cart>(loadCart);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [catalogPrices, setCatalogPrices] = useState<Record<string, number>>({});
   const reported = useSyncExternalStore(
     (modeStore ?? ALWAYS_LIVE).subscribe,
     (modeStore ?? ALWAYS_LIVE).get,
@@ -50,7 +51,7 @@ export function App({
   // Demo: the simulator owns its prices and its stock.
   const catalog = shopping
     ? mode === 'live'
-      ? liveCatalogue(snapshot?.inventory.items ?? [])
+      ? liveCatalogue(snapshot?.inventory.items ?? [], catalogPrices)
       : commerce.catalog()
     : [];
   const currency = snapshot?.currency ?? 'USD';
@@ -62,6 +63,22 @@ export function App({
       setPendingOrderId(null);
     }
   }, [snapshot, pendingOrderId]);
+  // The catalogue service owns the shelf prices; fetch them once in live mode for display.
+  useEffect(() => {
+    if (mode !== 'live' || !commerce.fetchCatalog) return;
+    let cancelled = false;
+    commerce.fetchCatalog()
+      .then((products) => {
+        if (cancelled || products.length === 0) return;
+        setCatalogPrices(Object.fromEntries(products.map((p) => [p.sku, p.priceCents / 100])));
+      })
+      .catch(() => {
+        // The table in lib/catalogue.ts is the fallback.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, commerce]);
 
   const addToCart = (sku: string, quantity: number) =>
     setCart((current) => withQuantity(current, sku, (current[sku] ?? 0) + quantity));

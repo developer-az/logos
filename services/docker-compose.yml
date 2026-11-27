@@ -1,4 +1,4 @@
-# Local stack: Kafka (KRaft), PostgreSQL, both services, and Kafka UI.
+# Local stack: Kafka (KRaft), PostgreSQL, the .NET services, and Kafka UI.
 #   cp .env.example .env   # then set POSTGRES_PASSWORD
 #   docker compose up --build
 # Order API:     http://localhost:5001/swagger
@@ -49,9 +49,11 @@ services:
     environment:
       ConnectionStrings__Orders: Host=postgres;Database=orders;Username=postgres;Password=${POSTGRES_PASSWORD}
       Kafka__BootstrapServers: kafka:9092
+      Catalog__BaseUrl: http://catalog-service:8080
     depends_on:
       kafka: { condition: service_healthy }
       postgres: { condition: service_healthy }
+      catalog-service: { condition: service_started }
 
   inventory-service:
     build: { context: ., args: { SERVICE: Inventory.Service } }
@@ -85,6 +87,15 @@ services:
       Kafka__BootstrapServers: kafka:9092
     depends_on:
       kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
+  catalog-service:
+    build: { context: ., args: { SERVICE: Catalog.Service } }
+    ports: ["5005:8080"]
+    environment:
+      ConnectionStrings__Catalog: Host=postgres;Database=catalog;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Catalog__SeedDemoData: "true"
+    depends_on:
       postgres: { condition: service_healthy }
 
   kafka-ui:

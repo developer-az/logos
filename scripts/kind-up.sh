@@ -33,10 +33,12 @@ docker build -t "$REGISTRY/logos-order-service:$TAG" --build-arg SERVICE=Order.S
 docker build -t "$REGISTRY/logos-inventory-service:$TAG" --build-arg SERVICE=Inventory.Service "$ROOT/services"
 docker build -t "$REGISTRY/logos-procurement-service:$TAG" --build-arg SERVICE=Procurement.Service "$ROOT/services"
 docker build -t "$REGISTRY/logos-finance-service:$TAG" --build-arg SERVICE=Finance.Service "$ROOT/services"
+docker build -t "$REGISTRY/logos-catalog-service:$TAG" --build-arg SERVICE=Catalog.Service "$ROOT/services"
 docker build -t "$REGISTRY/logos-dashboard:$TAG" "$ROOT/dashboard"
 kind load docker-image --name "$CLUSTER" \
   "$REGISTRY/logos-order-service:$TAG" "$REGISTRY/logos-inventory-service:$TAG" \
-  "$REGISTRY/logos-procurement-service:$TAG" "$REGISTRY/logos-finance-service:$TAG" "$REGISTRY/logos-dashboard:$TAG"
+  "$REGISTRY/logos-procurement-service:$TAG" "$REGISTRY/logos-finance-service:$TAG" \
+  "$REGISTRY/logos-catalog-service:$TAG" "$REGISTRY/logos-dashboard:$TAG"
 
 step "Namespace and Strimzi $STRIMZI_VERSION"
 kubectl apply -k "$ROOT/deploy/k8s/namespace"
@@ -51,7 +53,8 @@ if ! kubectl -n "$NAMESPACE" get secret postgres-credentials >/dev/null 2>&1; th
     --from-literal=orders-password="$(openssl rand -hex 16)" \
     --from-literal=inventory-password="$(openssl rand -hex 16)" \
     --from-literal=procurement-password="$(openssl rand -hex 16)" \
-    --from-literal=finance-password="$(openssl rand -hex 16)"
+    --from-literal=finance-password="$(openssl rand -hex 16)" \
+    --from-literal=catalog-password="$(openssl rand -hex 16)"
 fi
 
 step "Applying deploy/k8s/overlays/local"
@@ -64,7 +67,7 @@ kubectl -n "$NAMESPACE" wait kafkauser --all --for=condition=Ready --timeout=5m
 kubectl -n "$NAMESPACE" rollout status statefulset/postgres --timeout=5m
 
 step "Waiting for the apps"
-for app in order-service inventory-service procurement-service finance-service dashboard load-generator; do
+for app in order-service inventory-service procurement-service finance-service catalog-service dashboard load-generator; do
   kubectl -n "$NAMESPACE" rollout status "deploy/$app" --timeout=10m
 done
 

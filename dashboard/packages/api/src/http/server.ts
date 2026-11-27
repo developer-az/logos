@@ -25,6 +25,7 @@ export interface ServerDeps {
   /** Base URLs of the services the dashboard forwards writes to; empty disables that path. */
   orderServiceUrl?: string | null;
   procurementServiceUrl?: string | null;
+  catalogServiceUrl?: string | null;
   /** Injected in tests; the runtime uses global fetch. */
   fetch?: typeof fetch;
   logger?: FastifyServerOptions['logger'];
@@ -145,6 +146,12 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return forwardWrite(reply, fetchImpl, `${deps.procurementServiceUrl}/procurement/purchase-orders`, req.body);
   });
 
+  // Read-through, so the page displays the price the order service will actually charge.
+  app.get('/api/catalog', async (_req, reply) => {
+    if (!deps.catalogServiceUrl) return reply.code(503).send({ error: 'catalog is not configured' });
+    return forwardRead(reply, fetchImpl, `${deps.catalogServiceUrl}/catalog`);
+  });
+
   if (deps.staticDir) {
     const root = resolve(deps.staticDir);
     if (!existsSync(root)) throw new Error(`STATIC_DIR does not exist: ${root}`);
@@ -172,13 +179,30 @@ async function forwardWrite(
   body: unknown,
   idempotencyKey?: string,
 ): Promise<unknown> {
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (idempotencyKey) headers['idempotency-key'] = idempotencyKey;
+  return forward(reply, fetchImpl, url, 'POST', body ?? {},
+    idempotencyKey ? { 'idempotency-key': idempotencyKey } : {});
+}
+
+/** Forwards one read the same way; the page only needs the body. */
+async function forwardRead(reply: FastifyReply, fetchImpl: typeof fetch, url: string): Promise<unknown> {
+  return forward(reply, fetchImpl, url, 'GET', undefined, {});
+}
+
+async function forward(
+  reply: FastifyReply,
+  fetchImpl: typeof fetch,
+  url: string,
+  method: 'GET' | 'POST',
+  body: unknown,
+  extraHeaders: Record<string, string>,
+): Promise<unknown> {
+  const headers: Record<string, string> = { ...extraHeaders };
+  if (body !== undefined) headers['content-type'] = 'application/json';
   try {
     const res = await fetchImpl(url, {
-      method: 'POST',
+      method,
       headers,
-      body: JSON.stringify(body ?? {}),
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(5_000),
     });
     const text = await res.text();
@@ -187,8 +211,8 @@ async function forwardWrite(
       .header('content-type', res.headers.get('content-type') ?? 'application/json');
     return text ? reply.send(text) : reply.send();
   } catch (err) {
-    reply.log.warn({ err, url }, 'write API unreachable');
-    return reply.code(502).send({ error: 'write API unreachable' });
+    reply.log.warn({ err, url }, `${method} upstream unreachable`);
+    return reply.code(502).send({ error: method === 'GET' ? 'read API unreachable' : 'write API unreachable' });
   }
 }
 

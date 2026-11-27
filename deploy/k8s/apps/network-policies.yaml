@@ -21,7 +21,7 @@ spec:
     - from:
         - podSelector:
             matchExpressions:
-              - { key: app.kubernetes.io/name, operator: In, values: [order-service, inventory-service, procurement-service, finance-service] }
+              - { key: app.kubernetes.io/name, operator: In, values: [order-service, inventory-service, procurement-service, finance-service, catalog-service] }
       ports:
         - { port: 5432, protocol: TCP }
 ---
@@ -36,6 +36,25 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - ports:
+        - { port: 8080, protocol: TCP }
+---
+# The catalogue is reference data read by the order service (at checkout) and by the dashboard
+# (to display the price that will be charged).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: catalog-from-order-and-dashboard
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: catalog-service }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: order-service }
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: dashboard }
+      ports:
         - { port: 8080, protocol: TCP }
 ---
 # The dashboard proxies the page's writes (checkout, purchase orders) to the owning services.

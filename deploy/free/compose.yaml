@@ -6,7 +6,7 @@
 #
 # Nothing is built on the VM: images come prebuilt from GHCR (images.yml publishes them on every
 # merge to main), because compiling .NET on 1/8 of a CPU and 1 GB would take far too long.
-# Memory limits add up to ~850 MB; setup.sh adds swap for headroom.
+# Memory limits add up to ~1010 MB; setup.sh adds swap for headroom.
 name: logos-free
 
 x-restart: &restart
@@ -51,10 +51,12 @@ services:
     environment:
       <<: *kafka-dotnet
       ConnectionStrings__Orders: Host=postgres;Database=orders;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Catalog__BaseUrl: http://catalog-service:8080
     volumes:
       - ./kafka:/kafka:ro
     depends_on:
       postgres: { condition: service_healthy }
+      catalog-service: { condition: service_started }
 
   inventory-service:
     <<: *restart
@@ -87,12 +89,27 @@ services:
       FINANCE_TOPIC: ""
       # Checkout works against the real order service; there is no procurement here.
       ORDER_SERVICE_URL: http://order-service:8080
+      CATALOG_SERVICE_URL: http://catalog-service:8080
       NODE_OPTIONS: --max-old-space-size=160
     volumes:
       - ./kafka:/kafka:ro
     depends_on:
       order-service: { condition: service_started }
       inventory-service: { condition: service_started }
+      catalog-service: { condition: service_started }
+
+  # Prices live here, not in the browser: the order service quotes every line from this catalogue.
+  catalog-service:
+    <<: *restart
+    image: ghcr.io/developer-az/logos-catalog-service:${IMAGE_TAG:-latest}
+    mem_limit: 160m
+    environment:
+      ConnectionStrings__Catalog: Host=postgres;Database=catalog;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Catalog__SeedDemoData: "true"
+      DOTNET_gcServer: "0"
+      DOTNET_GCConserveMemory: "7"
+    depends_on:
+      postgres: { condition: service_healthy }
 
   # Real orders through the order API, so every event comes out of the C# saga. Its traffic is
   # also what keeps Aiven's free Kafka from powering off (it does after 24 h with no activity).

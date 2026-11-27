@@ -24,6 +24,7 @@ async function main(): Promise<void> {
     corsOrigins: config.http.corsOrigins,
     orderServiceUrl: config.writes.ordersUrl,
     procurementServiceUrl: config.writes.procurementUrl,
+    catalogServiceUrl: config.writes.catalogUrl,
     logger: { level: config.logLevel },
   });
   const log = app.log;

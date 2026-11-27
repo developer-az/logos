@@ -1,5 +1,5 @@
 import { priceForSku } from './catalogue';
-import type { ActionResult, CatalogItem, CommerceActions } from './commerce';
+import type { ActionResult, CatalogItem, CatalogProduct, CommerceActions } from './commerce';
 
 const INCIDENTS_DEMO_ONLY = 'The incident lab runs in the demo simulator.';
 
@@ -46,6 +46,23 @@ export function createLiveActions(baseUrl: string): CommerceActions {
   return {
     // In live mode the store prices the read model's SKUs from the table; see liveCatalogue().
     catalog: (): CatalogItem[] => [],
+    fetchCatalog: async (): Promise<CatalogProduct[]> => {
+      try {
+        const res = await fetch(`${baseUrl}/api/catalog`);
+        if (!res.ok) return [];
+        const data: unknown = await res.json();
+        if (!Array.isArray(data)) return [];
+        return data.flatMap((entry) => {
+          if (!entry || typeof entry !== 'object') return [];
+          const { sku, name, priceCents } = entry as Record<string, unknown>;
+          return typeof sku === 'string' && typeof name === 'string' && typeof priceCents === 'number'
+            ? [{ sku, name, priceCents }]
+            : [];
+        });
+      } catch {
+        return [];
+      }
+    },
     placeOrder: async (lines) => {
       const missing = lines.find((line) => priceForSku(line.sku) == null);
       if (missing) return { ok: false, error: `No shelf price is configured for ${missing.sku}.` };

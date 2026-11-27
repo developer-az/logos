@@ -8,7 +8,7 @@ AKS demo cluster; only the overlay differs.
 deploy/k8s/
   namespace/        the logos namespace (Pod Security: baseline enforced, restricted warned)
   kafka/            Strimzi Kafka 4.3.1 (KRaft, TLS + SCRAM-SHA-512), topics and one KafkaUser per app
-  apps/             postgres, order-service, inventory-service, procurement-service, finance-service, dashboard, load-generator, network policies
+  apps/             postgres, order-service, inventory-service, procurement-service, finance-service, catalog-service, dashboard, load-generator, network policies
   overlays/local/   kind: 1 broker, 1 replica each, images built locally
   overlays/aks/     AKS: 3 brokers, 2 replicas each, HTTPS via Envoy Gateway, passwords from Key Vault
   platform/aks/     cluster-scoped GatewayClass and Let's Encrypt ClusterIssuer (applied once)
@@ -27,6 +27,7 @@ kubectl -n logos port-forward svc/dashboard 8080:80          # http://localhost:
 kubectl -n logos port-forward svc/order-service 5001:80      # http://localhost:5001/swagger
 kubectl -n logos port-forward svc/procurement-service 5003:80 # http://localhost:5003/swagger
 kubectl -n logos port-forward svc/finance-service 5004:80     # http://localhost:5004/swagger
+kubectl -n logos port-forward svc/catalog-service 5005:80     # http://localhost:5005/swagger
 scripts/kind-down.sh
 ```
 
@@ -41,14 +42,16 @@ the dashboard shows both. It also runs against docker compose:
 |---|---|---|
 | order-service, inventory-service, procurement-service, finance-service | Kafka | `logos-kafka-kafka-bootstrap:9093`, TLS (Strimzi cluster CA mounted at `/etc/kafka-ca`), SCRAM user named after the app; `Kafka__ProvisionTopics=false` because Strimzi owns the topics |
 | dashboard | Kafka | same listener, user `dashboard`; one consumer group per replica (`dashboard-*`, prefixed ACL); `NODE_EXTRA_CA_CERTS` trusts the cluster CA |
-| services | PostgreSQL | own database and role each (`orders`, `inventory`, `procurement`, `finance`); passwords from Secret `postgres-credentials` |
+| services | PostgreSQL | own database and role each (`orders`, `inventory`, `procurement`, `finance`, `catalog`); passwords from Secret `postgres-credentials` |
+| order-service | catalog-service | prices every order line at checkout; the client's price is ignored |
+| dashboard | catalog-service | reads prices to display what checkout will charge |
 | load generator | order, inventory and procurement APIs | places orders (about 10% cancelled), raises purchase orders when a SKU runs low; scale to 0 to pause |
 | dashboard | order and procurement APIs | the browser's writes (checkout, purchase orders) are proxied by the dashboard API to the owning service; default-deny is opened for that path only |
 
 Because Strimzi writes each KafkaUser's password Secret and the cluster CA Secret into the same
 namespace, pods mount them directly with no cross-namespace copying. Ingress is denied by default;
 `apps/network-policies.yaml` opens only the paths in the table, and the Kafka listener admits only
-the five apps.
+the Kafka clients (order, inventory, procurement, finance and dashboard; the catalogue is HTTP).
 
 Kafka ACLs are least privilege per app: each writes its own topic, reads the other's, writes
 dead letters for the topic it consumes, and reads only its own consumer group.
@@ -62,7 +65,7 @@ dead letters for the topic it consumes, and reads only its own consumer group.
 | `deploy-lint` | PRs touching `deploy/`, `scripts/`, `.github/` | render every overlay, validate against Kubernetes and CRD schemas, shellcheck, actionlint |
 | `e2e` | PRs touching any of the above, and main | `scripts/kind-up.sh` on a fresh kind cluster, so the smoke test runs against the real manifests |
 | `jira` | every PR | links the PR to its Jira issue and moves it on the board ([.github/jira](../.github/jira/README.md)) |
-| `images` | merge to main | pushes all five images to GHCR tagged with the commit SHA and `latest` |
+| `images` | merge to main | pushes all six images to GHCR tagged with the commit SHA and `latest` |
 | `deploy` | after `images` succeeds | applies `overlays/aks` with that SHA, waits, runs the smoke test, rolls back on failure |
 
 ## The AKS demo
