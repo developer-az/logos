@@ -135,7 +135,7 @@ describe('FinancePage', () => {
 });
 
 describe('IncidentsPage', () => {
-  it('shows the consumer counters and runs an action', () => {
+  it('shows the consumer counters and runs an action', async () => {
     const sendMalformed = jest.fn(() => ({
       ok: true as const,
       message: 'Published a truncated message.',
@@ -149,7 +149,7 @@ describe('IncidentsPage', () => {
     );
 
     expect(screen.getByText('Duplicates ignored')).toBeInTheDocument();
-    act(() => {
+    await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Send a malformed event' }));
     });
     expect(sendMalformed).toHaveBeenCalled();

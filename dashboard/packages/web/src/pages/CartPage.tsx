@@ -22,6 +22,7 @@ export function CartPage({
   onAdd: (sku: string, quantity: number) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [placing, setPlacing] = useState(false);
   const prices = new Map(catalog.map((item) => [item.sku, item]));
   const lines = Object.entries(cart).map(([sku, quantity]) => ({
     sku,
@@ -34,13 +35,18 @@ export function CartPage({
   );
   const empty = lines.length === 0;
 
-  const checkout = () => {
+  const checkout = async () => {
     setError(null);
-    const result = actions.placeOrder(
-      lines.map((line) => ({ sku: line.sku, quantity: line.quantity })),
-    );
-    if (result.ok) onOrderPlaced(result.orderId);
-    else setError(result.error);
+    setPlacing(true);
+    try {
+      const result = await actions.placeOrder(
+        lines.map((line) => ({ sku: line.sku, quantity: line.quantity })),
+      );
+      if (result.ok) onOrderPlaced(result.orderId);
+      else setError(result.error);
+    } finally {
+      setPlacing(false);
+    }
   };
 
   return (
@@ -157,8 +163,13 @@ export function CartPage({
         )}
         {!empty && (
           <div className="cart-actions">
-            <button type="button" className="button" disabled={!!actions.unavailableReason} onClick={checkout}>
-              Checkout
+            <button
+              type="button"
+              className="button"
+              disabled={placing || !!actions.unavailableReason}
+              onClick={() => void checkout()}
+            >
+              {placing ? 'Placing…' : 'Checkout'}
             </button>
           </div>
         )}

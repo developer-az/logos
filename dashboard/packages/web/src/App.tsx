@@ -4,6 +4,7 @@ import type { DataMode, ModeStore } from './hooks/fallback-source';
 import { navigateTo, useHashRoute } from './hooks/useHashRoute';
 import { useLiveSnapshot, type EventSourceFactory } from './hooks/useLiveSnapshot';
 import { cartCount, loadCart, saveCart, withQuantity, type Cart } from './lib/cart';
+import { liveCatalogue } from './lib/catalogue';
 import { unavailableActions, type CommerceActions } from './lib/commerce';
 import { formatAgo } from './lib/format';
 import { AboutPage } from './pages/AboutPage';
@@ -45,7 +46,13 @@ export function App({
   const commerce = actions ?? unavailableActions;
   const shopping =
     route.name === 'store' || route.name === 'cart' || route.name === 'sourcing';
-  const catalog = shopping ? commerce.catalog() : [];
+  // Live: the services' SKUs priced from the page's table, availability from the read model.
+  // Demo: the simulator owns its prices and its stock.
+  const catalog = shopping
+    ? mode === 'live'
+      ? liveCatalogue(snapshot?.inventory.items ?? [])
+      : commerce.catalog()
+    : [];
   const currency = snapshot?.currency ?? 'USD';
   const items = cartCount(cart);
 

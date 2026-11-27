@@ -67,7 +67,7 @@ describe('storefront', () => {
     sessionStorage.clear();
   });
 
-  it('adds an item to the cart and checks out to the order route', () => {
+  it('adds an item to the cart and checks out to the order route', async () => {
     const runtime = createDemoRuntime({ seed: 5, backfillMinutes: 0, rate: 0, now: () => T0 });
     render(<App demo createEventSource={runtime.factory} actions={runtime.actions} />);
 
@@ -78,7 +78,9 @@ describe('storefront', () => {
       window.location.hash = '#/cart';
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
+    });
 
     expect(window.location.hash).toMatch(/^#\/orders\/[0-9a-f-]+$/i);
 
@@ -116,6 +118,6 @@ describe('storefront', () => {
       FakeEventSource.latest().emit('snapshot', snapshot());
     });
 
-    expect(screen.getByText(/not available in live mode yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no write path configured/i)).toBeInTheDocument();
   });
 });

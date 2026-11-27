@@ -15,22 +15,25 @@ export type PlaceOrderResult =
 /** A write that does not hand back an id the page has to follow. */
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string };
 
+/** The demo writes synchronously; a live write goes over the network. Pages await either. */
+export type MaybePromise<T> = T | Promise<T>;
+
 export interface CommerceActions {
   /** Set when the current data source cannot write at all. */
   unavailableReason?: string;
   catalog(): CatalogItem[];
-  placeOrder(lines: Array<{ sku: string; quantity: number }>): PlaceOrderResult;
+  placeOrder(lines: Array<{ sku: string; quantity: number }>): MaybePromise<PlaceOrderResult>;
   /** Raises a purchase order; the goods receipt follows after the supplier's lead time. */
-  placePurchaseOrder(sku: string, supplierId: string, quantity: number): ActionResult;
+  placePurchaseOrder(sku: string, supplierId: string, quantity: number): MaybePromise<ActionResult>;
   /** Incidents lab: republish the last applied event, which the consumer must ignore. */
-  sendDuplicate(): ActionResult;
+  sendDuplicate(): MaybePromise<ActionResult>;
   /** Incidents lab: publish a truncated message, which the consumer must dead-letter. */
-  sendMalformed(): ActionResult;
+  sendMalformed(): MaybePromise<ActionResult>;
   /** Incidents lab: publish the last dead-lettered body again. */
-  replayDeadLetter(): ActionResult;
+  replayDeadLetter(): MaybePromise<ActionResult>;
 }
 
-export const LIVE_WRITES_UNAVAILABLE = 'Writes are not available in live mode yet.';
+export const LIVE_WRITES_UNAVAILABLE = 'This build has no write path configured.';
 
 export const unavailableActions: CommerceActions = {
   unavailableReason: LIVE_WRITES_UNAVAILABLE,

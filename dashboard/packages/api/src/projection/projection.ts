@@ -326,6 +326,10 @@ export class Projection {
         skus: this.inventory.size,
         lowStockThreshold: this.opts.lowStockThreshold,
         lowStock,
+        // Bounded: a read model with thousands of SKUs would bloat every push.
+        items: [...this.inventory.values()]
+          .sort((a, b) => a.sku.localeCompare(b.sku))
+          .slice(0, 200),
       },
       procurement: {
         quotes: [...this.quotes.values()].sort(

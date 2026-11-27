@@ -98,6 +98,83 @@ describe('REST API', () => {
   });
 });
 
+describe('write proxies', () => {
+  const order = { customerId: 'c-1', lines: [{ sku: 'MOUSE-01', quantity: 1, unitPrice: 29.5 }] };
+
+  it('refuses writes that no service is configured for', async () => {
+    const { app } = setup();
+    const res = await app.inject({ method: 'POST', url: '/api/orders', payload: order });
+    expect(res.statusCode).toBe(503);
+    expect(res.json().error).toBe('ordering is not configured');
+  });
+
+  it('forwards a checkout to the order service with its idempotency key', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 'ORD-1', status: 'placed' }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const { app } = setup({ orderServiceUrl: 'http://orders:8080', fetch: fetchMock as unknown as typeof fetch });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: { 'idempotency-key': 'checkout-1' },
+      payload: order,
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({ id: 'ORD-1', status: 'placed' });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://orders:8080/orders');
+    expect(init.headers).toMatchObject({ 'idempotency-key': 'checkout-1' });
+    expect(JSON.parse(String(init.body))).toEqual(order);
+  });
+
+  it('relays a refused write unchanged, so the page can show the service message', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: 'Vertex Components has a minimum order of 12.' }), {
+        status: 400,
+        headers: { 'content-type': 'application/problem+json' },
+      }),
+    );
+    const { app } = setup({ procurementServiceUrl: 'http://procurement:8080', fetch: fetchMock as unknown as typeof fetch });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/purchase-orders',
+      payload: { sku: 'MONITOR-27', supplierId: 'vertex', quantity: 2 },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().detail).toMatch(/minimum order/);
+    expect(fetchMock.mock.calls[0]![0]).toBe('http://procurement:8080/procurement/purchase-orders');
+  });
+
+  it('answers 502 when the write service is unreachable', async () => {
+    const fetchMock = jest.fn().mockRejectedValue(new Error('connect ECONNREFUSED'));
+    const { app } = setup({ orderServiceUrl: 'http://orders:8080', fetch: fetchMock as unknown as typeof fetch });
+
+    const res = await app.inject({ method: 'POST', url: '/api/orders', payload: order });
+    expect(res.statusCode).toBe(502);
+    expect(res.json().error).toBe('write API unreachable');
+  });
+
+  it('allows a cross-origin preflight for writes', async () => {
+    const { app } = setup({ corsOrigins: ['https://demo.example'] });
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/orders',
+      headers: { origin: 'https://demo.example', 'access-control-request-method': 'POST' },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(res.headers['access-control-allow-origin']).toBe('https://demo.example');
+    expect(res.headers['access-control-allow-methods']).toContain('POST');
+    expect(res.headers['access-control-allow-headers']).toContain('idempotency-key');
+  });
+});
+
 describe('live stream (SSE)', () => {
   it('sends a snapshot on connect, pushes changes, and stays quiet when nothing changes', async () => {
     const { app, projection } = setup();

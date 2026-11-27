@@ -27,6 +27,7 @@ export function SourcingPage({
   const [picked, setPicked] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [notice, setNotice] = useState<Notice>(null);
+  const [ordering, setOrdering] = useState<string | null>(null);
 
   const lowStock = snapshot?.inventory.lowStock ?? [];
   const quotes = snapshot?.procurement.quotes ?? [];
@@ -51,13 +52,18 @@ export function SourcingPage({
   const quantityFor = (q: SupplierQuote) =>
     quantities[`${q.sku}|${q.supplierId}`] ?? Math.max(q.moq, 12);
 
-  const order = (q: SupplierQuote) => {
-    const result = actions.placePurchaseOrder(q.sku, q.supplierId, quantityFor(q));
-    setNotice(
-      result.ok
-        ? { tone: 'ok', text: `${result.message} Watch the stock level change when it arrives.` }
-        : { tone: 'error', text: result.error },
-    );
+  const order = async (q: SupplierQuote) => {
+    setOrdering(q.quoteId);
+    try {
+      const result = await actions.placePurchaseOrder(q.sku, q.supplierId, quantityFor(q));
+      setNotice(
+        result.ok
+          ? { tone: 'ok', text: `${result.message} Watch the stock level change when it arrives.` }
+          : { tone: 'error', text: result.error },
+      );
+    } finally {
+      setOrdering(null);
+    }
   };
 
   return (
@@ -172,10 +178,10 @@ export function SourcingPage({
                           <button
                             type="button"
                             className="quiet-button"
-                            disabled={!!actions.unavailableReason}
-                            onClick={() => order(q)}
+                            disabled={!!actions.unavailableReason || ordering !== null}
+                            onClick={() => void order(q)}
                           >
-                            Order
+                            {ordering === q.quoteId ? 'Ordering…' : 'Order'}
                           </button>
                         </td>
                       </tr>

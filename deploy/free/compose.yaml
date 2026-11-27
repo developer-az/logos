@@ -85,6 +85,8 @@ services:
       # dashboard stops waiting for procurement and finance topics nobody creates here.
       PROCUREMENT_TOPIC: ""
       FINANCE_TOPIC: ""
+      # Checkout works against the real order service; there is no procurement here.
+      ORDER_SERVICE_URL: http://order-service:8080
       NODE_OPTIONS: --max-old-space-size=160
     volumes:
       - ./kafka:/kafka:ro

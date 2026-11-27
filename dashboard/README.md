@@ -9,7 +9,7 @@ broker.
 
 | Route | What it does | Backed by |
 |---|---|---|
-| `#/` | Store: catalogue, cart, checkout | Simulator (demo) |
+| `#/` | Store: catalogue, cart, checkout | Order service (live) / simulator (demo) |
 | `#/sourcing` | Supplier comparison, purchase orders, goods receipt | Procurement service (C#) |
 | `#/finance` | Captures, refunds, cost of goods, reconciliation | Finance service (C#) |
 | `#/incidents` | Duplicate, malformed and replayed messages | The projection's real counters |
@@ -19,6 +19,11 @@ broker.
 Orders, inventory, procurement and finance are four topics. The four C# services produce them; the
 public build runs the same contracts, projection and simulator in the browser. The sourcing and
 finance pages therefore read the real services when a backend is up, and the simulator otherwise.
+
+Writes never touch the read model. `POST /api/orders` and `POST /api/purchase-orders` forward to
+the service that owns the write (set `ORDER_SERVICE_URL` / `PROCUREMENT_SERVICE_URL`), and its
+event comes back through Kafka like every other change. The live store's prices are a demo table
+(`packages/web/src/lib/catalogue.ts`); a catalogue service would own them.
 
 ![Dashboard](docs/dashboard-desktop.png)
 
