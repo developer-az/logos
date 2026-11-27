@@ -66,7 +66,7 @@ dotnet test
 | `Inventory.Service.Tests` | stock invariants, all-or-nothing reservation, release, out-of-order cancel, goods receipt, idempotent redelivery, optimistic concurrency, HTTP API | nothing |
 | `Procurement.Service.Tests` | purchase-order rules, supplier minimums, due receipts published once, quote/order API | nothing (SQLite in memory) |
 | `Finance.Service.Tests` | settlement transitions, capture/refund/cancel, duplicate confirmation, summary arithmetic, HTTP API | nothing |
-| `OrderPlatform.IntegrationTests` | full saga over real Kafka and PostgreSQL, event chain and correlation, 25 concurrent orders for 10 units | Docker (skipped without it) |
+| `OrderPlatform.IntegrationTests` | full sagas over real Kafka and PostgreSQL: ordering, overselling, procurement restock through a goods receipt, finance capture and refund, event chain and correlation | Docker (skipped without it) |
 
 ## Design
 

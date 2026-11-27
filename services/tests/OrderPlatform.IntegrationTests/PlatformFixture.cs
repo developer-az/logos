@@ -3,10 +3,12 @@ using System.Net;
 using System.Net.Sockets;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
+using Finance.Service;
 using Inventory.Service;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Order.Service;
+using Procurement.Service;
 using Testcontainers.PostgreSql;
 
 namespace OrderPlatform.IntegrationTests;
@@ -59,9 +61,13 @@ public sealed class PlatformFixture : IAsyncLifetime
     public string BootstrapServers => $"localhost:{_kafkaPort}";
     public HttpClient Orders { get; private set; } = null!;
     public HttpClient Inventory { get; private set; } = null!;
+    public HttpClient Procurement { get; private set; } = null!;
+    public HttpClient Finance { get; private set; } = null!;
 
     private ServiceFactory<OrderServiceApp> _orderService = null!;
     private ServiceFactory<InventoryServiceApp> _inventoryService = null!;
+    private ServiceFactory<ProcurementServiceApp> _procurementService = null!;
+    private ServiceFactory<FinanceServiceApp> _financeService = null!;
 
     public async Task InitializeAsync()
     {
@@ -69,23 +75,43 @@ public sealed class PlatformFixture : IAsyncLifetime
 
         _inventoryService = new ServiceFactory<InventoryServiceApp>(Settings("Inventory", "inventory"));
         _orderService = new ServiceFactory<OrderServiceApp>(Settings("Orders", "orders"));
+        _procurementService = new ServiceFactory<ProcurementServiceApp>(Settings("Procurement", "procurement", new()
+        {
+            // One supplier day is one second here, so a receipt lands inside the test timeout.
+            ["Procurement:DaySeconds"] = "1",
+            ["Procurement:ReceiptPollInterval"] = "00:00:00.200",
+            ["Procurement:SeedDemoData"] = "true",
+        }));
+        _financeService = new ServiceFactory<FinanceServiceApp>(Settings("Finance", "finance"));
+
         Inventory = _inventoryService.CreateClient();
         Orders = _orderService.CreateClient();
+        Procurement = _procurementService.CreateClient();
+        Finance = _financeService.CreateClient();
     }
 
-    private Dictionary<string, string> Settings(string connectionName, string database) => new()
+    private Dictionary<string, string> Settings(string connectionName, string database,
+        Dictionary<string, string>? extra = null)
     {
-        [$"ConnectionStrings:{connectionName}"] = new Npgsql.NpgsqlConnectionStringBuilder(_postgres.GetConnectionString()) { Database = database }.ToString(),
-        ["Kafka:BootstrapServers"] = BootstrapServers,
-        ["Kafka:GroupId"] = $"{database}-{_runId}",
-        ["Kafka:ClientId"] = $"{database}-it",
-        ["Kafka:OutboxPollInterval"] = "00:00:00.050",
-    };
+        var settings = new Dictionary<string, string>
+        {
+            [$"ConnectionStrings:{connectionName}"] = new Npgsql.NpgsqlConnectionStringBuilder(_postgres.GetConnectionString()) { Database = database }.ToString(),
+            ["Kafka:BootstrapServers"] = BootstrapServers,
+            ["Kafka:GroupId"] = $"{database}-{_runId}",
+            ["Kafka:ClientId"] = $"{database}-it",
+            ["Kafka:OutboxPollInterval"] = "00:00:00.050",
+        };
+        if (extra is not null)
+            foreach (var (key, value) in extra) settings[key] = value;
+        return settings;
+    }
 
     public async Task DisposeAsync()
     {
         await _orderService.DisposeAsync();
         await _inventoryService.DisposeAsync();
+        await _procurementService.DisposeAsync();
+        await _financeService.DisposeAsync();
         await _kafka.DisposeAsync();
         await _postgres.DisposeAsync();
     }
