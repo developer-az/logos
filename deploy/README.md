@@ -43,6 +43,7 @@ the dashboard shows both. It also runs against docker compose:
 | dashboard | Kafka | same listener, user `dashboard`; one consumer group per replica (`dashboard-*`, prefixed ACL); `NODE_EXTRA_CA_CERTS` trusts the cluster CA |
 | services | PostgreSQL | own database and role each (`orders`, `inventory`, `procurement`, `finance`); passwords from Secret `postgres-credentials` |
 | load generator | order, inventory and procurement APIs | places orders (about 10% cancelled), raises purchase orders when a SKU runs low; scale to 0 to pause |
+| dashboard | order and procurement APIs | the browser's writes (checkout, purchase orders) are proxied by the dashboard API to the owning service; default-deny is opened for that path only |
 
 Because Strimzi writes each KafkaUser's password Secret and the cluster CA Secret into the same
 namespace, pods mount them directly with no cross-namespace copying. Ingress is denied by default;

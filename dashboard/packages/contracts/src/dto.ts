@@ -145,6 +145,8 @@ export interface DashboardSnapshot {
     skus: number;
     lowStockThreshold: number;
     lowStock: InventoryView[];
+    /** Every SKU the read model knows, so a storefront can price and sell what the services hold. */
+    items: InventoryView[];
   };
   /** Supplier quotes and the purchase orders raised from them. */
   procurement: {

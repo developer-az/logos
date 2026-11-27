@@ -10,7 +10,8 @@ import { App } from './App';
 import { createDemoRuntime } from './demo/demo-stream';
 import { createFallbackEventSourceFactory } from './hooks/fallback-source';
 import type { EventSourceFactory, EventSourceLike } from './hooks/useLiveSnapshot';
-import { LIVE_WRITES_UNAVAILABLE, type CommerceActions } from './lib/commerce';
+import type { CommerceActions } from './lib/commerce';
+import { createLiveActions } from './lib/live-actions';
 import './styles.css';
 
 // Public build (npm run build:demo, what Vercel runs). With VITE_API_URL set, the page reads the
@@ -33,25 +34,31 @@ if (publicBuild && apiUrl) {
   streamUrl = `${apiUrl}/api/stream`;
   createEventSource = fallback.factory;
   mode = fallback.mode;
-  // Writes only flow through the simulator; a live backend has no write API to call.
+  // Writes only flow through the simulator; on a live backend there is no write API to call.
+  const live = createLiveActions(apiUrl);
   const simulated = () => fallback.mode.get() === 'simulated';
-  const refused = (): { ok: false; error: string } => ({ ok: false, error: LIVE_WRITES_UNAVAILABLE });
   actions = {
     get unavailableReason() {
-      return simulated() ? undefined : LIVE_WRITES_UNAVAILABLE;
+      return simulated() ? undefined : live.unavailableReason;
     },
-    catalog: () => (simulated() ? demo.actions.catalog() : []),
-    placeOrder: (lines) => (simulated() ? demo.actions.placeOrder(lines) : refused()),
+    catalog: () => (simulated() ? demo.actions.catalog() : live.catalog()),
+    placeOrder: (lines) => (simulated() ? demo.actions.placeOrder(lines) : live.placeOrder(lines)),
     placePurchaseOrder: (sku, supplierId, quantity) =>
-      simulated() ? demo.actions.placePurchaseOrder(sku, supplierId, quantity) : refused(),
-    sendDuplicate: () => (simulated() ? demo.actions.sendDuplicate() : refused()),
-    sendMalformed: () => (simulated() ? demo.actions.sendMalformed() : refused()),
-    replayDeadLetter: () => (simulated() ? demo.actions.replayDeadLetter() : refused()),
+      simulated()
+        ? demo.actions.placePurchaseOrder(sku, supplierId, quantity)
+        : live.placePurchaseOrder(sku, supplierId, quantity),
+    sendDuplicate: () => (simulated() ? demo.actions.sendDuplicate() : live.sendDuplicate()),
+    sendMalformed: () => (simulated() ? demo.actions.sendMalformed() : live.sendMalformed()),
+    replayDeadLetter: () =>
+      simulated() ? demo.actions.replayDeadLetter() : live.replayDeadLetter(),
   };
 } else if (publicBuild) {
   const demo = createDemoRuntime();
   createEventSource = demo.factory;
   actions = demo.actions;
+} else {
+  // Served by the dashboard API (Docker, VM): same origin, writes proxied to the services.
+  actions = createLiveActions('');
 }
 
 // The storefront is the public landing page; #/ops is the control tower.

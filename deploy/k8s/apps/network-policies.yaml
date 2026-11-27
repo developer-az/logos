@@ -38,6 +38,23 @@ spec:
     - ports:
         - { port: 8080, protocol: TCP }
 ---
+# The dashboard proxies the page's writes (checkout, purchase orders) to the owning services.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: write-apis-from-dashboard
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/name, operator: In, values: [order-service, procurement-service] }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: dashboard }
+      ports:
+        - { port: 8080, protocol: TCP }
+---
 # The write APIs take traffic from the load generator and from the gateway's proxies (the AKS
 # overlay publishes the order API, rate limited, through Envoy Gateway).
 apiVersion: networking.k8s.io/v1

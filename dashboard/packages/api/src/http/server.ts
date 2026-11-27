@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import { ORDER_STATUSES } from '@orderflow/contracts';
-import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import Fastify, { LogController, type FastifyInstance, type FastifyReply, type FastifyServerOptions } from 'fastify';
 import { z } from 'zod';
 import type { Metrics } from '../metrics';
 import type { Projection } from '../projection/projection';
@@ -22,6 +22,11 @@ export interface ServerDeps {
    * elsewhere, such as the Vercel build). `['*']` allows any origin. Empty: same origin only.
    */
   corsOrigins?: readonly string[];
+  /** Base URLs of the services the dashboard forwards writes to; empty disables that path. */
+  orderServiceUrl?: string | null;
+  procurementServiceUrl?: string | null;
+  /** Injected in tests; the runtime uses global fetch. */
+  fetch?: typeof fetch;
   logger?: FastifyServerOptions['logger'];
   now?: () => Date;
 }
@@ -65,9 +70,20 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const allowed = allowOrigin(origin);
     return allowed ? { 'access-control-allow-origin': allowed, vary: 'Origin' } : {};
   };
-  // Every API route is a GET without credentials, which browsers send without a preflight.
+  // Read routes are GETs; writes are POSTs that a browser preflights when the page is hosted
+  // elsewhere. Both answer CORS here, without a plugin.
   app.addHook('onRequest', async (req, reply) => {
-    if (req.url.startsWith('/api/')) reply.headers(corsHeaders(req.headers.origin));
+    if (!req.url.startsWith('/api/')) return;
+    const headers = corsHeaders(req.headers.origin);
+    if (req.method === 'OPTIONS') {
+      return reply.code(204).headers({
+        ...headers,
+        'access-control-allow-methods': 'GET, POST, OPTIONS',
+        'access-control-allow-headers': 'content-type, idempotency-key',
+        'access-control-max-age': '600',
+      }).send();
+    }
+    reply.headers(headers);
   });
   app.addHook('onReady', async () => stream.start());
   app.addHook('onClose', async () => stream.stop());
@@ -113,6 +129,22 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     stream.attach(reply.raw, corsHeaders(req.headers.origin));
   });
 
+  const fetchImpl = deps.fetch ?? fetch;
+
+  // Writes go to the service that owns them. The dashboard never mutates the read model itself:
+  // the event made by the service comes back through Kafka like every other change.
+  app.post('/api/orders', async (req, reply) => {
+    if (!deps.orderServiceUrl) return reply.code(503).send({ error: 'ordering is not configured' });
+    const key = req.headers['idempotency-key'];
+    return forwardWrite(reply, fetchImpl, `${deps.orderServiceUrl}/orders`, req.body,
+      typeof key === 'string' ? key : undefined);
+  });
+
+  app.post('/api/purchase-orders', async (req, reply) => {
+    if (!deps.procurementServiceUrl) return reply.code(503).send({ error: 'purchasing is not configured' });
+    return forwardWrite(reply, fetchImpl, `${deps.procurementServiceUrl}/procurement/purchase-orders`, req.body);
+  });
+
   if (deps.staticDir) {
     const root = resolve(deps.staticDir);
     if (!existsSync(root)) throw new Error(`STATIC_DIR does not exist: ${root}`);
@@ -128,8 +160,39 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   return app;
 }
 
-/** Returns the Access-Control-Allow-Origin value for a request origin, or null to send none. */
-export function corsPolicy(origins: readonly string[]): (origin: string | undefined) => string | null {
+/**
+ * Forwards one write to the owning service and relays its status and body. A refused write is
+ * passed through unchanged (the page can show the service's own validation message); only an
+ * unreachable service becomes a 502.
+ */
+async function forwardWrite(
+  reply: FastifyReply,
+  fetchImpl: typeof fetch,
+  url: string,
+  body: unknown,
+  idempotencyKey?: string,
+): Promise<unknown> {
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (idempotencyKey) headers['idempotency-key'] = idempotencyKey;
+  try {
+    const res = await fetchImpl(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body ?? {}),
+      signal: AbortSignal.timeout(5_000),
+    });
+    const text = await res.text();
+    reply
+      .code(res.status)
+      .header('content-type', res.headers.get('content-type') ?? 'application/json');
+    return text ? reply.send(text) : reply.send();
+  } catch (err) {
+    reply.log.warn({ err, url }, 'write API unreachable');
+    return reply.code(502).send({ error: 'write API unreachable' });
+  }
+}
+
+/** Returns the Access-Control-Allow-Origin value for a request origin, or null to send none. */export function corsPolicy(origins: readonly string[]): (origin: string | undefined) => string | null {
   if (origins.includes('*')) return () => '*';
   const allowed = new Set(origins.map((o) => o.replace(/\/+$/, '')));
   return (origin) => (origin && allowed.has(origin) ? origin : null);

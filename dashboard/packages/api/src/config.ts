@@ -56,6 +56,12 @@ const EnvSchema = z.object({
    * Needed when the web app is hosted separately (the Vercel build); empty means same origin.
    */
   CORS_ORIGINS: z.string().default(''),
+  /**
+   * Base URLs of the write APIs the dashboard proxies (compose service names in-cluster).
+   * Empty disables that write path; the page then says it is unavailable.
+   */
+  ORDER_SERVICE_URL: z.string().default(''),
+  PROCUREMENT_SERVICE_URL: z.string().default(''),
 });
 
 export type Config = ReturnType<typeof loadConfig>;
@@ -91,6 +97,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       host: e.HOST,
       staticDir: e.STATIC_DIR || null,
       corsOrigins: e.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
+    },
+    writes: {
+      ordersUrl: e.ORDER_SERVICE_URL.replace(/\/+$/, '') || null,
+      procurementUrl: e.PROCUREMENT_SERVICE_URL.replace(/\/+$/, '') || null,
     },
     logLevel: e.LOG_LEVEL,
     kafka: {

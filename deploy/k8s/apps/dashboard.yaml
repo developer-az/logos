@@ -61,6 +61,9 @@ spec:
             # Must match the prefixed group ACL on KafkaUser "dashboard".
             - { name: KAFKA_GROUP_PREFIX, value: dashboard }
             - { name: LOW_STOCK_THRESHOLD, value: "5" }
+            # Writes the page makes are forwarded to the service that owns them.
+            - { name: ORDER_SERVICE_URL, value: "http://order-service" }
+            - { name: PROCUREMENT_SERVICE_URL, value: "http://procurement-service" }
           readinessProbe:
             httpGet: { path: /readyz, port: http }
             periodSeconds: 3

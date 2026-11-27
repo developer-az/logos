@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DashboardSnapshot } from '@orderflow/contracts';
-import type { ActionResult, CommerceActions } from '../lib/commerce';
+import type { ActionResult, CommerceActions, MaybePromise } from '../lib/commerce';
 import { formatAgo, formatCount } from '../lib/format';
 
 interface LogEntry {
@@ -24,20 +24,26 @@ export function IncidentsPage({
   now: Date;
 }) {
   const [log, setLog] = useState<LogEntry[]>([]);
-  const disabled = !!actions.unavailableReason || !snapshot;
+  const [running, setRunning] = useState(false);
+  const disabled = !!actions.unavailableReason || !snapshot || running;
 
-  const run = (label: string, action: () => ActionResult) => {
-    const result = action();
-    setLog((current) =>
-      [
-        {
-          tone: result.ok ? ('ok' as const) : ('error' as const),
-          text: result.ok ? `${label}: ${result.message}` : `${label}: ${result.error}`,
-          at: new Date(),
-        },
-        ...current,
-      ].slice(0, 6),
-    );
+  const run = async (label: string, action: () => MaybePromise<ActionResult>) => {
+    setRunning(true);
+    try {
+      const result = await action();
+      setLog((current) =>
+        [
+          {
+            tone: result.ok ? ('ok' as const) : ('error' as const),
+            text: result.ok ? `${label}: ${result.message}` : `${label}: ${result.error}`,
+            at: new Date(),
+          },
+          ...current,
+        ].slice(0, 6),
+      );
+    } finally {
+      setRunning(false);
+    }
   };
 
   const counters = snapshot?.consumer;
@@ -67,7 +73,7 @@ export function IncidentsPage({
               type="button"
               className="quiet-button"
               disabled={disabled}
-              onClick={() => run('Duplicate', () => actions.sendDuplicate())}
+              onClick={() => void run('Duplicate', () => actions.sendDuplicate())}
             >
               Send a duplicate event
             </button>
@@ -75,7 +81,7 @@ export function IncidentsPage({
               type="button"
               className="quiet-button"
               disabled={disabled}
-              onClick={() => run('Malformed', () => actions.sendMalformed())}
+              onClick={() => void run('Malformed', () => actions.sendMalformed())}
             >
               Send a malformed event
             </button>
@@ -83,7 +89,7 @@ export function IncidentsPage({
               type="button"
               className="quiet-button"
               disabled={disabled}
-              onClick={() => run('Replay', () => actions.replayDeadLetter())}
+              onClick={() => void run('Replay', () => actions.replayDeadLetter())}
             >
               Replay the last dead letter
             </button>
@@ -167,3 +173,4 @@ export function IncidentsPage({
     </>
   );
 }
+

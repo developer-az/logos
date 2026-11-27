@@ -22,6 +22,8 @@ async function main(): Promise<void> {
     streamIntervalMs: config.streamIntervalMs,
     staticDir: config.http.staticDir,
     corsOrigins: config.http.corsOrigins,
+    orderServiceUrl: config.writes.ordersUrl,
+    procurementServiceUrl: config.writes.procurementUrl,
     logger: { level: config.logLevel },
   });
   const log = app.log;

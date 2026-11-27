@@ -41,6 +41,10 @@ export function snapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardS
         { sku: 'SKU-0003', onHand: 4, reserved: 4, available: 0, version: 9, updatedAt: '2026-10-06T10:04:00Z', lowStock: true },
         { sku: 'SKU-0007', onHand: 10, reserved: 7, available: 3, version: 4, updatedAt: '2026-10-06T10:03:00Z', lowStock: true },
       ],
+      items: [
+        { sku: 'SKU-0003', onHand: 4, reserved: 4, available: 0, version: 9, updatedAt: '2026-10-06T10:04:00Z', lowStock: true },
+        { sku: 'SKU-0007', onHand: 10, reserved: 7, available: 3, version: 4, updatedAt: '2026-10-06T10:03:00Z', lowStock: true },
+      ],
     },
     procurement: {
       quotes: [
