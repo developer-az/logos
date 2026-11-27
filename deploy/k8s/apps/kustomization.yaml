@@ -10,6 +10,7 @@ resources:
   - inventory-service.yaml
   - procurement-service.yaml
   - finance-service.yaml
+  - catalog-service.yaml
   - dashboard.yaml
   - load-generator.yaml
   - network-policies.yaml

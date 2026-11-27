@@ -3,9 +3,9 @@
 # PostgreSQL (or the CloudNativePG operator) with backups and failover.
 #
 # Expects Secret "postgres-credentials" with keys postgres-password, orders-password,
-# inventory-password, procurement-password and finance-password. scripts/kind-up.sh generates it
-# locally; on AKS it comes from Key Vault (overlays/aks/external-secrets.yaml). Use URL-safe values
-# (the scripts use hex) because the service connection strings embed them.
+# inventory-password, procurement-password, finance-password and catalog-password. scripts/kind-up.sh
+# generates it locally; on AKS it comes from Key Vault (overlays/aks/external-secrets.yaml). Use
+# URL-safe values (the scripts use hex) because the service connection strings embed them.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -17,7 +17,8 @@ data:
     set -eu
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
       -v orders_pw="$ORDERS_DB_PASSWORD" -v inventory_pw="$INVENTORY_DB_PASSWORD" \
-      -v procurement_pw="$PROCUREMENT_DB_PASSWORD" -v finance_pw="$FINANCE_DB_PASSWORD" <<'SQL'
+      -v procurement_pw="$PROCUREMENT_DB_PASSWORD" -v finance_pw="$FINANCE_DB_PASSWORD" \
+      -v catalog_pw="$CATALOG_DB_PASSWORD" <<'SQL'
     CREATE ROLE orders LOGIN PASSWORD :'orders_pw';
     CREATE DATABASE orders OWNER orders;
     REVOKE CONNECT ON DATABASE orders FROM PUBLIC;
@@ -30,6 +31,9 @@ data:
     CREATE ROLE finance LOGIN PASSWORD :'finance_pw';
     CREATE DATABASE finance OWNER finance;
     REVOKE CONNECT ON DATABASE finance FROM PUBLIC;
+    CREATE ROLE catalog LOGIN PASSWORD :'catalog_pw';
+    CREATE DATABASE catalog OWNER catalog;
+    REVOKE CONNECT ON DATABASE catalog FROM PUBLIC;
     SQL
 ---
 apiVersion: v1
@@ -80,6 +84,8 @@ spec:
               valueFrom: { secretKeyRef: { name: postgres-credentials, key: procurement-password } }
             - name: FINANCE_DB_PASSWORD
               valueFrom: { secretKeyRef: { name: postgres-credentials, key: finance-password } }
+            - name: CATALOG_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: postgres-credentials, key: catalog-password } }
           readinessProbe:
             exec: { command: ["pg_isready", "-U", "postgres", "-h", "127.0.0.1"] }
             periodSeconds: 5

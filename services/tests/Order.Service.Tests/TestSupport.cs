@@ -32,7 +32,7 @@ public sealed class OrdersDb : IDisposable
 }
 
 /// <summary>The real app over SQLite with Kafka switched off, for HTTP-level tests.</summary>
-public sealed class OrderApiFactory : WebApplicationFactory<OrderServiceApp>
+public class OrderApiFactory : WebApplicationFactory<OrderServiceApp>
 {
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
 
@@ -42,6 +42,9 @@ public sealed class OrderApiFactory : WebApplicationFactory<OrderServiceApp>
         using var db = NewContext();
         db.Database.EnsureCreated();
     }
+
+    /// <summary>Hook for tests that need extra services, such as a stub catalogue client.</summary>
+    protected virtual void ConfigureAdditionalServices(IServiceCollection services) { }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -53,6 +56,7 @@ public sealed class OrderApiFactory : WebApplicationFactory<OrderServiceApp>
             // EF Core 9+ also registers the provider through this; remove it or Npgsql and SQLite both load.
             services.RemoveAll<IDbContextOptionsConfiguration<OrdersDbContext>>();
             services.AddDbContext<OrdersDbContext>(o => o.UseSqlite(_connection));
+            ConfigureAdditionalServices(services);
         });
     }
 

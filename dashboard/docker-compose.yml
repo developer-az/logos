@@ -15,6 +15,7 @@ services:
       LOW_STOCK_THRESHOLD: "5"
       ORDER_SERVICE_URL: http://order-service:8080
       PROCUREMENT_SERVICE_URL: http://procurement-service:8080
+      CATALOG_SERVICE_URL: http://catalog-service:8080
     depends_on:
       kafka: { condition: service_healthy }
       # The services provision the topics and their .dlt topics on startup.
@@ -22,6 +23,7 @@ services:
       inventory-service: { condition: service_started }
       procurement-service: { condition: service_started }
       finance-service: { condition: service_started }
+      catalog-service: { condition: service_started }
 
   simulator:
     profiles: [simulator]

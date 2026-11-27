@@ -62,6 +62,8 @@ const EnvSchema = z.object({
    */
   ORDER_SERVICE_URL: z.string().default(''),
   PROCUREMENT_SERVICE_URL: z.string().default(''),
+  /** Catalogue read API, used by the page to display the prices the order service will charge. */
+  CATALOG_SERVICE_URL: z.string().default(''),
 });
 
 export type Config = ReturnType<typeof loadConfig>;
@@ -101,6 +103,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     writes: {
       ordersUrl: e.ORDER_SERVICE_URL.replace(/\/+$/, '') || null,
       procurementUrl: e.PROCUREMENT_SERVICE_URL.replace(/\/+$/, '') || null,
+      catalogUrl: e.CATALOG_SERVICE_URL.replace(/\/+$/, '') || null,
     },
     logLevel: e.LOG_LEVEL,
     kafka: {

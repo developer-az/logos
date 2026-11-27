@@ -34,10 +34,13 @@ const PRICES: Record<string, number> = {
 import type { InventoryView } from '@orderflow/contracts';
 import type { CatalogItem } from './commerce';
 
-/** The live storefront: prices from this page's table, availability from the read model. */
-export function liveCatalogue(items: readonly InventoryView[]): CatalogItem[] {
+/** The live storefront: prices from the catalogue service, availability from the read model. */
+export function liveCatalogue(
+  items: readonly InventoryView[],
+  prices: Record<string, number> = {},
+): CatalogItem[] {
   return items.flatMap((item) => {
-    const price = priceForSku(item.sku);
+    const price = prices[item.sku] ?? priceForSku(item.sku);
     return price == null ? [] : [{ sku: item.sku, unitPrice: price, available: item.available }];
   });
 }

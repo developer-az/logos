@@ -56,6 +56,13 @@ export function AboutPage() {
                 </td>
               </tr>
               <tr>
+                <th scope="row">Catalog service</th>
+                <td>
+                  C# / .NET 10. Owns shelf prices and names. The order service prices every line from
+                  it, so a client cannot set what it is charged.
+                </td>
+              </tr>
+              <tr>
                 <th scope="row">Transport</th>
                 <td>
                   Kafka, one topic per service, keyed so one order&apos;s events stay ordered.
@@ -154,6 +161,12 @@ export function AboutPage() {
             <dd>
               Money is converted once, at the edge, and summed as integers. No float drift in the
               ledger or the reconciliation.
+            </dd>
+            <dt>Prices are not the client's</dt>
+            <dd>
+              Checkout sends SKUs and quantities; the order service reads the price from the
+              catalogue. If the catalogue cannot answer, the order is refused rather than priced
+              from an untrusted number.
             </dd>
             <dt>An honest demo</dt>
             <dd>

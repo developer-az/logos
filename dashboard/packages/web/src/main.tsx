@@ -42,6 +42,7 @@ if (publicBuild && apiUrl) {
       return simulated() ? undefined : live.unavailableReason;
     },
     catalog: () => (simulated() ? demo.actions.catalog() : live.catalog()),
+    fetchCatalog: () => (simulated() ? Promise.resolve([]) : live.fetchCatalog!()),
     placeOrder: (lines) => (simulated() ? demo.actions.placeOrder(lines) : live.placeOrder(lines)),
     placePurchaseOrder: (sku, supplierId, quantity) =>
       simulated()

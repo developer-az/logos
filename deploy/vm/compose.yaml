@@ -69,9 +69,11 @@ services:
     environment:
       ConnectionStrings__Orders: Host=postgres;Database=orders;Username=postgres;Password=${POSTGRES_PASSWORD}
       Kafka__BootstrapServers: kafka:9092
+      Catalog__BaseUrl: http://catalog-service:8080
     depends_on:
       kafka: { condition: service_healthy }
       postgres: { condition: service_healthy }
+      catalog-service: { condition: service_started }
 
   inventory-service:
     <<: *restart
@@ -114,6 +116,18 @@ services:
       kafka: { condition: service_healthy }
       postgres: { condition: service_healthy }
 
+  catalog-service:
+    <<: *restart
+    build: { context: ../../services, args: { SERVICE: Catalog.Service } }
+    image: logos-catalog-service:local
+    pull_policy: build
+    mem_limit: 256m
+    environment:
+      ConnectionStrings__Catalog: Host=postgres;Database=catalog;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Catalog__SeedDemoData: "true"
+    depends_on:
+      postgres: { condition: service_healthy }
+
   dashboard:
     <<: *restart
     build: { context: ../../dashboard }
@@ -125,6 +139,7 @@ services:
       LOW_STOCK_THRESHOLD: "5"
       ORDER_SERVICE_URL: http://order-service:8080
       PROCUREMENT_SERVICE_URL: http://procurement-service:8080
+      CATALOG_SERVICE_URL: http://catalog-service:8080
     depends_on:
       kafka: { condition: service_healthy }
       # The services provision the topics and their .dlt topics on startup.
@@ -132,6 +147,7 @@ services:
       inventory-service: { condition: service_started }
       procurement-service: { condition: service_started }
       finance-service: { condition: service_started }
+      catalog-service: { condition: service_started }
 
   # Same script as deploy/k8s/apps/load-generator.yaml: real orders through the order API, so
   # every event on the dashboard comes out of the C# saga. `docker compose stop load-generator`

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Order.Service.Catalog;
 using Order.Service.Data;
 using Order.Service.Domain;
 using OrderPlatform.Contracts;
@@ -35,7 +36,8 @@ public static class OrderEndpoints
 
     /// <summary>Accepts the order (202) and stages OrderPlaced in the same transaction.
     /// The final status arrives asynchronously once inventory has decided.</summary>
-    private static async Task<IResult> PlaceAsync(PlaceOrderRequest request, HttpContext http, OrdersDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> PlaceAsync(PlaceOrderRequest request, HttpContext http, OrdersDbContext db,
+        CatalogClient catalog, TimeProvider clock, ILoggerFactory logs, CancellationToken ct)
     {
         var idempotencyKey = http.Request.Headers[IdempotencyHeader].FirstOrDefault();
         if (idempotencyKey is { Length: > 100 })
@@ -48,11 +50,39 @@ public static class OrderEndpoints
         }
 
         var correlationId = Guid.TryParse(http.Request.Headers[CorrelationHeader].FirstOrDefault(), out var c) ? c : Guid.NewGuid();
+        IReadOnlyList<PlaceOrderLine> lines = request.Lines ?? [];
+        if (catalog.Enabled)
+        {
+            Dictionary<string, decimal> prices;
+            try
+            {
+                prices = await catalog.PricesAsync(lines.Select(l => l.Sku), ct);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                logs.CreateLogger("OrderPricing").LogWarning(ex, "Catalogue pricing failed; refusing the order");
+                return Results.Problem("Pricing is unavailable. Nothing was ordered; try again.",
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+
+            var unknown = lines
+                .Where(l => !prices.ContainsKey(CatalogClient.Normalize(l.Sku)))
+                .Select(l => l.Sku).Distinct().ToList();
+            if (unknown.Count > 0)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["lines"] = [$"Not in the catalogue: {string.Join(", ", unknown)}."],
+                });
+
+            // The catalogue is the authority; whatever price the client sent is ignored.
+            lines = lines.Select(l => l with { UnitPrice = prices[CatalogClient.Normalize(l.Sku)] }).ToList();
+        }
+
         Domain.Order order;
         try
         {
             order = Domain.Order.Place(Guid.NewGuid(), request.CustomerId,
-                (request.Lines ?? []).Select(l => new OrderItem { Sku = l.Sku, Quantity = l.Quantity, UnitPrice = l.UnitPrice }),
+                lines.Select(l => new OrderItem { Sku = l.Sku, Quantity = l.Quantity, UnitPrice = l.UnitPrice }),
                 correlationId, idempotencyKey, clock.GetUtcNow());
         }
         catch (DomainException ex)

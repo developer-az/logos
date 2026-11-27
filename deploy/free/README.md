@@ -5,7 +5,7 @@ The public site stays on Vercel. Behind it, the real pipeline runs on two free t
 ```
 Vercel (static page) ──HTTPS, live stream──▶ Oracle Always Free micro VM (1 GB)
                                                Caddy ─ dashboard read model (Node)
-                                               order-service, inventory-service (.NET 10)
+                                               order, inventory and catalog services (.NET 10)
                                                PostgreSQL, load generator
                                                       │ TLS, client certificate
                                                       ▼

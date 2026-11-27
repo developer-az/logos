@@ -9,7 +9,7 @@ broker.
 
 | Route | What it does | Backed by |
 |---|---|---|
-| `#/` | Store: catalogue, cart, checkout | Order service (live) / simulator (demo) |
+| `#/` | Store: catalogue, cart, checkout | Order service + catalogue (live) / simulator (demo) |
 | `#/sourcing` | Supplier comparison, purchase orders, goods receipt | Procurement service (C#) |
 | `#/finance` | Captures, refunds, cost of goods, reconciliation | Finance service (C#) |
 | `#/incidents` | Duplicate, malformed and replayed messages | The projection's real counters |
@@ -22,8 +22,10 @@ finance pages therefore read the real services when a backend is up, and the sim
 
 Writes never touch the read model. `POST /api/orders` and `POST /api/purchase-orders` forward to
 the service that owns the write (set `ORDER_SERVICE_URL` / `PROCUREMENT_SERVICE_URL`), and its
-event comes back through Kafka like every other change. The live store's prices are a demo table
-(`packages/web/src/lib/catalogue.ts`); a catalogue service would own them.
+event comes back through Kafka like every other change. The order service prices each line from
+the catalogue service, so a client cannot set a price; the live store reads the same prices
+through `GET /api/catalog` (`CATALOG_SERVICE_URL`) to display them, with the table in
+`packages/web/src/lib/catalogue.ts` as the fallback.
 
 ![Dashboard](docs/dashboard-desktop.png)
 

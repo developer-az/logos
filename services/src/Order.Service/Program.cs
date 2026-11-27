@@ -13,6 +13,10 @@ builder.Services.AddKafkaMessaging(builder.Configuration)
     .AddKafkaConsumer<InventoryEventsHandler>(Topics.InventoryEvents);
 
 builder.Services.AddProblemDetails();
+builder.Services.Configure<Order.Service.Catalog.CatalogOptions>(
+    builder.Configuration.GetSection(Order.Service.Catalog.CatalogOptions.Section));
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<Order.Service.Catalog.CatalogClient>();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

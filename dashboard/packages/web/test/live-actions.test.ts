@@ -19,6 +19,12 @@ describe('liveCatalogue', () => {
       { sku: 'MONITOR-27', unitPrice: 299, available: 0 },
     ]);
   });
+
+  it('prefers the catalogue service prices when they are available', () => {
+    expect(liveCatalogue([inventory('MOUSE-01', 4)], { 'MOUSE-01': 31 })).toEqual([
+      { sku: 'MOUSE-01', unitPrice: 31, available: 4 },
+    ]);
+  });
 });
 
 describe('createLiveActions', () => {
@@ -66,6 +72,28 @@ describe('createLiveActions', () => {
 
     const result = await createLiveActions('').placePurchaseOrder('MONITOR-27', 'vertex', 2);
     expect(result).toEqual({ ok: false, error: 'Vertex Components has a minimum order of 12.' });
+  });
+
+  it('fetches the catalogue prices the order service will charge', async () => {
+    const fetchMock = respond(200, [
+      { sku: 'MOUSE-01', name: 'Nimbus Wireless Mouse', priceCents: 2950 },
+      { sku: 'KEYBOARD-01', name: 'Aurora 75% Keyboard', priceCents: 8900 },
+      { sku: 'BROKEN' },
+    ]);
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const products = await createLiveActions('').fetchCatalog!();
+
+    expect(products).toEqual([
+      { sku: 'MOUSE-01', name: 'Nimbus Wireless Mouse', priceCents: 2950 },
+      { sku: 'KEYBOARD-01', name: 'Aurora 75% Keyboard', priceCents: 8900 },
+    ]);
+    expect(fetchMock.mock.calls[0]![0]).toBe('/api/catalog');
+  });
+
+  it('falls back to no catalogue prices when the catalogue is down', async () => {
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch;
+    expect(await createLiveActions('').fetchCatalog!()).toEqual([]);
   });
 
   it('says when the service is unreachable', async () => {

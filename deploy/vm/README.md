@@ -1,9 +1,9 @@
 # The full platform on one VM
 
-The real stack, public over HTTPS, on one small Linux VM: Kafka, PostgreSQL, the order and
-inventory services (.NET), the dashboard, a load generator placing real orders through the order
-API, and Caddy in front with a Let's Encrypt certificate. Every event on the dashboard comes out
-of the C# saga over Kafka.
+The real stack, public over HTTPS, on one small Linux VM: Kafka, PostgreSQL, the .NET services
+(order, inventory, procurement, finance and catalog), the dashboard, a load generator placing real
+orders through the order API, and Caddy in front with a Let's Encrypt certificate. Every event on
+the dashboard comes out of the C# saga over Kafka.
 
 ```bash
 # On a fresh Ubuntu 22.04/24.04 or Debian 12 VM, with ports 80 and 443 open to the internet:
