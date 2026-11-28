@@ -106,7 +106,6 @@ it('tells the visitor which data they are looking at', () => {
     live[0]!.emit('snapshot', snapshot());
   });
   expect(screen.getByText(/^Live\. Every number/)).toBeInTheDocument();
-  expect(screen.getByText('Orders and inventory, straight from Kafka')).toBeInTheDocument();
   expect(screen.getByLabelText('Consumer health')).toHaveTextContent('dead-lettered');
 
   // A second page whose backend is down.

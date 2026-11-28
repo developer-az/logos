@@ -33,16 +33,19 @@ export function ControlTower({
 
   return (
     <>
-      <div className="title-row">
-        <div>
-          <h1>Orderflow Live</h1>
-          <p className="sub">
-            {mode === 'simulated'
-              ? 'Orders and inventory, simulated live in your browser'
-              : 'Orders and inventory, straight from Kafka'}
+      <header className="masthead">
+        <div className="masthead-main">
+          <p className="eyebrow">
+            <span className="eyebrow-index">05</span>
+            Control tower
+          </p>
+          <h1>Watch it work.</h1>
+          <p className="lede">
+            Throughput, decisions, and one order’s path across both topics, with the time each step
+            took. Every figure is folded from the same event stream the systems write to.
           </p>
         </div>
-      </div>
+      </header>
 
       {live && (
         <p className="notice live-notice">
@@ -60,8 +63,8 @@ export function ControlTower({
 
       {demo && (
         <p className="notice demo-notice">
-          Public demo. Events are generated in your browser through the same contracts and read model as the Kafka
-          deployment. <a href="https://github.com/developer-az/logos">Source and architecture</a>
+          Public demo. Events are generated in your browser, not read from Kafka.{' '}
+          <a href="https://github.com/developer-az/logos">Source and architecture</a>
         </p>
       )}
 

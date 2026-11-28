@@ -22,14 +22,29 @@ export function FinancePage({
 
   return (
     <>
-      <div className="title-row">
-        <div>
-          <h1>Finance</h1>
-          <p className="sub">
-            Captures, refunds and cost of goods, folded from the finance events.
+      <header className="masthead">
+        <div className="masthead-main">
+          <p className="eyebrow">
+            <span className="eyebrow-index">03</span>
+            Finance
+          </p>
+          <h1>Follow the money.</h1>
+          <p className="lede">
+            Every confirmation captures an amount and its standard cost; every cancellation refunds
+            it. Amounts are integer cents, so the ledger can be checked exactly.
           </p>
         </div>
-      </div>
+        <dl className="masthead-meta">
+          <div>
+            <dt>Movements</dt>
+            <dd>{finance?.ledger.length ?? 0}</dd>
+          </div>
+          <div>
+            <dt>Currency</dt>
+            <dd>{currency}</dd>
+          </div>
+        </dl>
+      </header>
 
       {!snapshot || !finance ? (
         <p className="empty" role="status">

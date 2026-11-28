@@ -43,6 +43,7 @@ export function SourcingPage({
     .filter((q) => q.sku === sku)
     .sort((a, b) => a.unitCostCents - b.unitCostCents);
   const inStock = new Map(catalog.map((c) => [c.sku, c.available]));
+  const alsoLow = lowStock.filter((item) => item.sku !== sku);
   const cheapest = skuQuotes[0]?.supplierId;
   const fastest = skuQuotes.reduce<SupplierQuote | undefined>(
     (best, q) => (!best || q.leadTimeDays < best.leadTimeDays ? q : best),
@@ -68,18 +69,33 @@ export function SourcingPage({
 
   return (
     <>
-      <div className="title-row">
-        <div>
-          <h1>Sourcing</h1>
-          <p className="sub">
-            Three suppliers quote every SKU. Choosing one raises a purchase order; the receipt
-            restocks the shelf.
+      <header className="masthead">
+        <div className="masthead-main">
+          <p className="eyebrow">
+            <span className="eyebrow-index">02</span>
+            Sourcing
+          </p>
+          <h1>Restock from three suppliers.</h1>
+          <p className="lede">
+            Every SKU has three quotes. Choosing one raises a purchase order; the goods receipt
+            restocks the shelf, and inventory publishes the new level.
           </p>
         </div>
-        <span className="quiet-button" aria-hidden="true">
-          {quotes.length} quotes
-        </span>
-      </div>
+        <dl className="masthead-meta">
+          <div>
+            <dt>Quotes</dt>
+            <dd>{quotes.length}</dd>
+          </div>
+          <div>
+            <dt>Reorder</dt>
+            <dd>{lowStock.length}</dd>
+          </div>
+          <div>
+            <dt>Open POs</dt>
+            <dd>{orders.filter((po) => po.status !== 'received').length}</dd>
+          </div>
+        </dl>
+      </header>
 
       {!snapshot ? (
         <p className="empty" role="status">
@@ -210,44 +226,36 @@ export function SourcingPage({
                 </label>
                 {lowStock.length === 0 ? (
                   <p className="empty">Every SKU is above the reorder point.</p>
+                ) : alsoLow.length === 0 ? (
+                  <p className="empty">Nothing else is below the reorder point right now.</p>
                 ) : (
-                  <ul className="reorder-list">
-                    {lowStock.slice(0, 6).map((item) => (
-                      <li key={item.sku}>
-                        <button
-                          type="button"
-                          className={`reorder-sku${item.sku === sku ? ' is-picked' : ''}`}
-                          onClick={() => setPicked(item.sku)}
-                          aria-pressed={item.sku === sku}
-                        >
-                          <span className="reorder-product">
-                            <span className="product-name">{productName(item.sku)}</span>
-                            <span className="mono product-sku">{item.sku}</span>
-                          </span>
-                          <span className="reorder-level">
-                            {item.available} available
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <p className="reorder-label">Also at or below the reorder point</p>
+                    <ul className="reorder-list">
+                      {alsoLow.slice(0, 6).map((item) => (
+                        <li key={item.sku}>
+                          <button
+                            type="button"
+                            className="reorder-sku"
+                            onClick={() => setPicked(item.sku)}
+                          >
+                            <span className="reorder-product">
+                              <span className="product-name">{productName(item.sku)}</span>
+                              <span className="mono product-sku">{item.sku}</span>
+                            </span>
+                            <span className="reorder-level">
+                              {item.available} available
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
-                <p className="card-hint reorder-note">
-                  The list is what the read model flags right now. The picker reaches every SKU.
-                </p>
-              </section>
-
-              <section className="card" aria-labelledby="stock-title">
-                <h2 id="stock-title">Shelf now</h2>
-                <p className="card-hint">Availability the store is selling against.</p>
-                <dl className="facts">
-                  <dt>Product</dt>
-                  <dd>{sku ? productName(sku) : '—'}</dd>
-                  <dt>SKU</dt>
-                  <dd className="mono">{sku ?? '—'}</dd>
+                <dl className="facts reorder-facts">
                   <dt>Available</dt>
                   <dd>{sku ? (inStock.get(sku) ?? 0) : '—'}</dd>
-                  <dt>Open orders</dt>
+                  <dt>Open purchase orders</dt>
                   <dd>{orders.filter((o) => o.status === 'in-transit').length}</dd>
                 </dl>
               </section>

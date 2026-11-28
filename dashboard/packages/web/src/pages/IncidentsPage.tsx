@@ -50,14 +50,33 @@ export function IncidentsPage({
 
   return (
     <>
-      <div className="title-row">
-        <div>
-          <h1>Incidents</h1>
-          <p className="sub">
-            Break the stream on purpose and watch the consumer hold the line.
+      <header className="masthead">
+        <div className="masthead-main">
+          <p className="eyebrow">
+            <span className="eyebrow-index">04</span>
+            Incidents
+          </p>
+          <h1>Break it on purpose.</h1>
+          <p className="lede">
+            Publish a duplicate and a malformed message, then replay the dead letter. The counters
+            are the consumer's own, not a scripted animation.
           </p>
         </div>
-      </div>
+        <dl className="masthead-meta">
+          <div>
+            <dt>Applied</dt>
+            <dd>{formatCount(counters?.processed ?? 0)}</dd>
+          </div>
+          <div>
+            <dt>Duplicates</dt>
+            <dd>{formatCount(counters?.duplicates ?? 0)}</dd>
+          </div>
+          <div>
+            <dt>Dead-lettered</dt>
+            <dd>{formatCount(counters?.invalid ?? 0)}</dd>
+          </div>
+        </dl>
+      </header>
 
       {actions.unavailableReason && <p className="notice">{actions.unavailableReason}</p>}
 
@@ -148,7 +167,7 @@ export function IncidentsPage({
             <div>
               <h2 id="dlq-title">Dead letters</h2>
               <p className="card-hint">
-                The last bodies the consumer refused. Empty until a malformed message is published.
+                The bodies the consumer refused, with the error that stopped each one. Newest first.
               </p>
             </div>
           </div>

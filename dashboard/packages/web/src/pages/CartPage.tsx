@@ -51,15 +51,22 @@ export function CartPage({
 
   return (
     <>
-      <div className="title-row">
-        <div>
-          <h1>Cart</h1>
-          <p className="sub">Checkout places a real order. Its events come back through the read model.</p>
+      <header className="masthead">
+        <div className="masthead-main">
+          <p className="eyebrow">
+            <span className="eyebrow-index">06</span>
+            Checkout
+          </p>
+          <h1>Your order.</h1>
+          <p className="lede">
+            Checkout sends the lines to the order service, which prices them from the catalogue.
+            The resulting events come back through the read model like every other change.
+          </p>
         </div>
         <a className="quiet-button" href="#/">
           Back to store
         </a>
-      </div>
+      </header>
 
       {actions.unavailableReason && <p className="notice">{actions.unavailableReason}</p>}
       {error && (
@@ -106,9 +113,9 @@ export function CartPage({
                 <tr>
                   <th>Product</th>
                   <th className="num">Unit price</th>
-                  <th>Quantity</th>
+                  <th className="col-qty">Quantity</th>
                   <th className="num">Line total</th>
-                  <th />
+                  <th className="col-action" />
                 </tr>
               </thead>
               <tbody>

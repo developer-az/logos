@@ -91,7 +91,7 @@ export function App({
             <BrandMark />
             <span>Orderflow</span>
           </a>
-          <span className="brand-scope">Order &amp; inventory events</span>
+          <span className="brand-scope">Order platform over Kafka</span>
           <nav className="nav" aria-label="Sections">
             <a className="nav-link" href="#/" aria-current={route.name === 'store' ? 'page' : undefined}>
               Store
@@ -111,18 +111,35 @@ export function App({
             <a className="nav-link" href="#/about" aria-current={route.name === 'about' ? 'page' : undefined}>
               About
             </a>
-            <a className="nav-link nav-cart" href="#/cart" aria-current={route.name === 'cart' ? 'page' : undefined}>
-              Cart{items > 0 ? ` (${items})` : ''}
-            </a>
           </nav>
           <div className="topbar-right">
             <ConnectionBadge connection={connection} caughtUp={snapshot?.caughtUp ?? null} />
             {receivedAt && <span className="freshness">Updated {formatAgo(receivedAt.toISOString(), now)}</span>}
+            <a
+              className="cart-pill"
+              href="#/cart"
+              aria-current={route.name === 'cart' ? 'page' : undefined}
+            >
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M1.5 2h2l1.6 8.2a1 1 0 0 0 1 .8h6.3a1 1 0 0 0 1-.8L14.5 5H4"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx="6.5" cy="13.5" r="1" fill="currentColor" />
+                <circle cx="12" cy="13.5" r="1" fill="currentColor" />
+              </svg>
+              <span>
+                Cart{items > 0 && <span key={items} className="cart-count"> ({items})</span>}
+              </span>
+            </a>
           </div>
         </div>
       </div>
 
-      <main className="page">
+      <main className="page" key={`${route.name}:${route.name === 'order' ? route.orderId : ''}`}>
         {route.name === 'ops' && (
           <ControlTower
             snapshot={snapshot}
