@@ -12,7 +12,9 @@ number on the page is folded from the same event stream, and every write becomes
 | [deploy/](deploy/README.md) | Kubernetes (Strimzi, kind, AKS), compose, one-VM and free-tier deployments |
 | [.github/jira/](.github/jira/README.md) | Pull requests linked to Jira issues and moved along the board |
 
-![The dashboard reading the real C# services through Kafka, with one order's saga traced](dashboard/docs/dashboard-desktop.png)
+![The storefront: catalogue, cart, and checkout against the catalogue the order service prices from](dashboard/docs/storefront.png)
+
+![The control tower reading the real C# services through Kafka, with one order's saga traced](dashboard/docs/dashboard-desktop.png)
 
 ## What you can do
 
