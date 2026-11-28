@@ -38,15 +38,19 @@ export function OrderPage({
 
   return (
     <>
-      <div className="title-row">
-        <div>
+      <header className="masthead">
+        <div className="masthead-main">
+          <p className="eyebrow">
+            <span className="eyebrow-index">07</span>
+            Order trace
+          </p>
           <h1>Order</h1>
           <p className="sub mono">{orderId}</p>
         </div>
         <a className="quiet-button" href="#/">
           Back to store
         </a>
-      </div>
+      </header>
 
       {!snapshot ? (
         <p className="empty" role="status">

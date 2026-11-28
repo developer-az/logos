@@ -49,6 +49,31 @@ export function productName(sku: string): string {
   return NAMES[sku] ?? sku;
 }
 
+/**
+ * Presentation grouping for the shelf. The catalogue feed carries no category, so this is
+ * derived from the product name; an unknown product falls back to "Other" rather than
+ * disappearing from the store.
+ */
+const CATEGORIES: Array<{ id: string; label: string; pattern: RegExp }> = [
+  { id: 'keyboards', label: 'Keyboards', pattern: /keyboard/i },
+  { id: 'displays', label: 'Displays', pattern: /monitor|display/i },
+  { id: 'input', label: 'Pointing', pattern: /mouse|trackpad|switch/i },
+  { id: 'audio', label: 'Audio', pattern: /headset|microphone|\bmic\b/i },
+  { id: 'video', label: 'Vision', pattern: /webcam|ring light|camera/i },
+  { id: 'power', label: 'Power & docks', pattern: /charger|dock|hub/i },
+  { id: 'desk', label: 'Desk', pattern: /lamp|stand|mat/i },
+];
+
+export interface Category {
+  id: string;
+  label: string;
+}
+
+export function categoryFor(product: string): Category {
+  const match = CATEGORIES.find((c) => c.pattern.test(product));
+  return match ? { id: match.id, label: match.label } : { id: 'other', label: 'Other' };
+}
+
 /** Shelf price, or null when this page has no price for the SKU (the store then leaves it out). */
 export function priceForSku(sku: string): number | null {
   return PRICES[sku] ?? null;

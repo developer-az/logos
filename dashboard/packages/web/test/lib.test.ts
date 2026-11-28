@@ -1,3 +1,5 @@
+import { categoryFor } from '../src/lib/catalogue';
+import { glyphFor } from '../src/components/ProductGlyph';
 import { formatAgo, formatDuration, formatMoney, formatPercent } from '../src/lib/format';
 import { linePath, niceMax } from '../src/lib/scale';
 
@@ -32,6 +34,28 @@ describe('format', () => {
     expect(formatAgo('2026-10-06T07:00:00Z', now)).toBe('3 h ago');
     expect(formatAgo(null, now)).toBe('—');
   });
+});
+
+describe('catalogue presentation', () => {
+  it.each([
+    ['Aurora 75% Keyboard', 'keyboards'],
+    ['Vertex 27-inch Monitor', 'displays'],
+    ['Nimbus Wireless Mouse', 'input'],
+    ['Pulse Headset', 'audio'],
+    ['Clearline Webcam', 'video'],
+    ['Cobalt 65 W Charger', 'power'],
+    ['Lumen Desk Lamp', 'desk'],
+    ['Mystery Widget', 'other'],
+  ])('groups %p under %p', (name, id) => expect(categoryFor(name).id).toBe(id));
+
+  it.each([
+    ['Aurora 75% Keyboard', 'keyboard'],
+    ['USB-C Dock 8-in-1', 'dock'],
+    ['Halo Ring Light', 'ringlight'],
+    ['Lumen Desk Lamp', 'lamp'],
+    ['Tempo USB Microphone', 'microphone'],
+    ['Something new', 'crate'],
+  ])('draws %p as %p', (name, glyph) => expect(glyphFor(name)).toBe(glyph));
 });
 
 describe('scale', () => {

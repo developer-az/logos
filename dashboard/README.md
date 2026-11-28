@@ -16,9 +16,14 @@ broker.
 | `#/ops` | Live orders, stock, throughput, one order's saga | Kafka through the API |
 | `#/about` | What is real, what breaks, and why | Static |
 
-Orders, inventory, procurement and finance are four topics. The four C# services produce them; the
-public build runs the same contracts, projection and simulator in the browser. The sourcing and
-finance pages therefore read the real services when a backend is up, and the simulator otherwise.
+Orders, inventory, procurement and finance are four topics, produced by four of the five C# services;
+the catalogue is a synchronous HTTP service with no topic of its own. The public build runs the same
+contracts, projection and simulator in the browser. The sourcing and finance pages therefore read the
+real services when a backend is up, and the simulator otherwise.
+
+The storefront is a shelf, not a table: each SKU gets a geometric line drawing
+(`packages/web/src/components/ProductGlyph.tsx`), a live stock tag, and a quantity stepper, with the
+order draft pinned beside it. There is no product photography to load and no image to 404.
 
 Writes never touch the read model. `POST /api/orders` and `POST /api/purchase-orders` forward to
 the service that owns the write (set `ORDER_SERVICE_URL` / `PROCUREMENT_SERVICE_URL`), and its

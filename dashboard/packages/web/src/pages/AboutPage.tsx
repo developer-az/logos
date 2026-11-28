@@ -5,18 +5,23 @@
 export function AboutPage() {
   return (
     <>
-      <div className="title-row">
-        <div>
-          <h1>About</h1>
-          <p className="sub">
-            An order and inventory platform built around one idea: every state change is an event,
-            and every event is safe to deliver twice.
+      <header className="masthead">
+        <div className="masthead-main">
+          <p className="eyebrow">
+            <span className="eyebrow-index">08</span>
+            The build
+          </p>
+          <h1>What this is, and what is real.</h1>
+          <p className="lede">
+            An order platform built around one idea: every state change is an event, and every
+            event is safe to deliver twice. Here is what runs on the server, what runs in your
+            browser, and which failures are handled.
           </p>
         </div>
         <a className="quiet-button" href="https://github.com/developer-az/logos">
           Source
         </a>
-      </div>
+      </header>
 
       <div className="workbench workbench-top">
         <section className="card span-8" aria-labelledby="what-title">
