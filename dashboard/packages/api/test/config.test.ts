@@ -1,8 +1,20 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig } from '../src/config';
+import { loadConfig, parseTrustProxy } from '../src/config';
 import { kafkaClientConfig } from '../src/kafka/consumer';
+
+describe('parseTrustProxy', () => {
+  it.each([
+    ['', false],
+    ['0', false],
+    ['false', false],
+    ['1', '1'],
+    ['2', '2'],
+    ['true', true],
+    ['nonsense', false],
+  ])('%p -> %p', (value, expected) => expect(parseTrustProxy(value)).toBe(expected));
+});
 
 describe('loadConfig', () => {
   it('has working local defaults', () => {
@@ -17,7 +29,14 @@ describe('loadConfig', () => {
     expect(c.kafka.deadLetter?.('orders.events.v1')).toBe('orders.events.v1.dlt');
     expect(c.currency).toBe('USD');
     expect(c.kafka.sasl).toBeNull();
-    expect(c.http).toEqual({ port: 8080, host: '0.0.0.0', staticDir: null, corsOrigins: [] });
+    expect(c.http).toEqual({
+      port: 8080,
+      host: '0.0.0.0',
+      staticDir: null,
+      corsOrigins: [],
+      trustProxy: false,
+      writeRateLimitPerMinute: 20,
+    });
     expect(c.kafka.tls).toBeNull();
   });
 

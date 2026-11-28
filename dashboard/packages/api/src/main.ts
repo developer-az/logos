@@ -25,6 +25,8 @@ async function main(): Promise<void> {
     orderServiceUrl: config.writes.ordersUrl,
     procurementServiceUrl: config.writes.procurementUrl,
     catalogServiceUrl: config.writes.catalogUrl,
+    writeRateLimitPerMinute: config.http.writeRateLimitPerMinute,
+    trustProxy: config.http.trustProxy,
     logger: { level: config.logLevel },
   });
   const log = app.log;

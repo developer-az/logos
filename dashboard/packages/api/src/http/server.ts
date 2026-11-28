@@ -2,10 +2,11 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import { ORDER_STATUSES } from '@orderflow/contracts';
-import Fastify, { LogController, type FastifyInstance, type FastifyReply, type FastifyServerOptions } from 'fastify';
+import Fastify, { LogController, type FastifyInstance, type FastifyReply, type FastifyRequest, type FastifyServerOptions } from 'fastify';
 import { z } from 'zod';
 import type { Metrics } from '../metrics';
 import type { Projection } from '../projection/projection';
+import { createRateLimiter } from './rate-limit';
 import { SnapshotStream } from './stream';
 
 export interface ServerDeps {
@@ -26,6 +27,10 @@ export interface ServerDeps {
   orderServiceUrl?: string | null;
   procurementServiceUrl?: string | null;
   catalogServiceUrl?: string | null;
+  /** Writes allowed per client address per minute; 0 disables the limit. */
+  writeRateLimitPerMinute?: number;
+  /** Fastify trustProxy: a hop count as a string, true, or false (no proxy trusted). */
+  trustProxy?: boolean | string;
   /** Injected in tests; the runtime uses global fetch. */
   fetch?: typeof fetch;
   logger?: FastifyServerOptions['logger'];
@@ -45,6 +50,7 @@ const InventoryQuery = z.object({
 export function buildServer(deps: ServerDeps): FastifyInstance {
   const app = Fastify({
     logger: deps.logger ?? false,
+    trustProxy: deps.trustProxy ?? false,
     // Probes and scrapes arrive every few seconds; logging each would drown real requests.
     logController: new LogController({
       disableRequestLogging: (req) => QUIET_PATHS.has(req.url),
@@ -132,16 +138,37 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   const fetchImpl = deps.fetch ?? fetch;
 
+  // The public demo's writes are proxied to the services; without a limit one client could
+  // create orders in a loop. Per-address, fixed window, in process.
+  const writeLimit = deps.writeRateLimitPerMinute ?? 0;
+  const limiter =
+    writeLimit > 0
+      ? createRateLimiter({ limit: writeLimit, windowMs: 60_000, now: () => now().getTime() })
+      : null;
+  const writeGuard = async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!limiter) return;
+    const result = limiter.take(req.ip);
+    reply.headers({
+      'x-ratelimit-limit': String(writeLimit),
+      'x-ratelimit-remaining': String(result.remaining),
+    });
+    if (result.allowed) return;
+    const seconds = Math.max(1, Math.ceil(result.retryAfterMs / 1000));
+    return reply.header('retry-after', String(seconds)).code(429).send({
+      error: `Too many writes from this address. Try again in ${seconds} s.`,
+    });
+  };
+
   // Writes go to the service that owns them. The dashboard never mutates the read model itself:
   // the event made by the service comes back through Kafka like every other change.
-  app.post('/api/orders', async (req, reply) => {
+  app.post('/api/orders', { preHandler: writeGuard }, async (req, reply) => {
     if (!deps.orderServiceUrl) return reply.code(503).send({ error: 'ordering is not configured' });
     const key = req.headers['idempotency-key'];
     return forwardWrite(reply, fetchImpl, `${deps.orderServiceUrl}/orders`, req.body,
       typeof key === 'string' ? key : undefined);
   });
 
-  app.post('/api/purchase-orders', async (req, reply) => {
+  app.post('/api/purchase-orders', { preHandler: writeGuard }, async (req, reply) => {
     if (!deps.procurementServiceUrl) return reply.code(503).send({ error: 'purchasing is not configured' });
     return forwardWrite(reply, fetchImpl, `${deps.procurementServiceUrl}/procurement/purchase-orders`, req.body);
   });

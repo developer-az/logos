@@ -161,6 +161,48 @@ describe('write proxies', () => {
     expect(res.json().error).toBe('write API unreachable');
   });
 
+  it('limits writes per client address', async () => {
+    const fetchMock = jest.fn().mockImplementation(async () =>
+      new Response(JSON.stringify({ id: 'ORD-1' }), {
+        status: 202,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const { app } = setup({
+      orderServiceUrl: 'http://orders:8080',
+      fetch: fetchMock as unknown as typeof fetch,
+      writeRateLimitPerMinute: 2,
+    });
+
+    const post = () => app.inject({ method: 'POST', url: '/api/orders', payload: order });
+    expect((await post()).statusCode).toBe(202);
+    expect((await post()).statusCode).toBe(202);
+
+    const blocked = await post();
+    expect(blocked.statusCode).toBe(429);
+    expect(blocked.headers['retry-after']).toBe('60');
+    expect(blocked.json().error).toMatch(/Too many writes/);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not limit writes when the limit is zero', async () => {
+    const fetchMock = jest.fn().mockImplementation(async () =>
+      new Response(JSON.stringify({ id: 'ORD-1' }), {
+        status: 202,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const { app } = setup({
+      orderServiceUrl: 'http://orders:8080',
+      fetch: fetchMock as unknown as typeof fetch,
+      writeRateLimitPerMinute: 0,
+    });
+
+    for (let i = 0; i < 5; i += 1) {
+      expect((await app.inject({ method: 'POST', url: '/api/orders', payload: order })).statusCode).toBe(202);
+    }
+  });
+
   it('forwards the catalogue read so the page can show charged prices', async () => {
     const fetchMock = jest.fn().mockResolvedValue(
       new Response(JSON.stringify([{ sku: 'MOUSE-01', name: 'Nimbus', priceCents: 2950 }]), {
