@@ -65,6 +65,8 @@ spec:
             - { name: ORDER_SERVICE_URL, value: "http://order-service" }
             - { name: PROCUREMENT_SERVICE_URL, value: "http://procurement-service" }
             - { name: CATALOG_SERVICE_URL, value: "http://catalog-service" }
+            # Envoy Gateway is the only hop in front of the dashboard.
+            - { name: TRUST_PROXY, value: "1" }
           readinessProbe:
             httpGet: { path: /readyz, port: http }
             periodSeconds: 3

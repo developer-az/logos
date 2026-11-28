@@ -64,9 +64,25 @@ const EnvSchema = z.object({
   PROCUREMENT_SERVICE_URL: z.string().default(''),
   /** Catalogue read API, used by the page to display the prices the order service will charge. */
   CATALOG_SERVICE_URL: z.string().default(''),
+  /** Writes allowed per client address per minute; 0 disables the limit. */
+  WRITE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(0).default(20),
+  /**
+   * How many reverse proxies to trust when reading X-Forwarded-For: empty/false trusts none,
+   * a number trusts that many hops (1 behind Caddy or the Kubernetes gateway).
+   */
+  TRUST_PROXY: z.string().default(''),
 });
 
 export type Config = ReturnType<typeof loadConfig>;
+
+/** `''`/`false` -> no trusted proxy; `true` -> trust the whole chain; a number -> that many hops. */
+export function parseTrustProxy(value: string): boolean | string {
+  const v = value.trim().toLowerCase();
+  if (v === '' || v === 'false' || v === '0') return false;
+  if (v === 'true') return true;
+  const hops = Number(v);
+  return Number.isInteger(hops) && hops > 0 ? String(hops) : false;
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const parsed = EnvSchema.safeParse(env);
@@ -99,6 +115,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       host: e.HOST,
       staticDir: e.STATIC_DIR || null,
       corsOrigins: e.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
+      trustProxy: parseTrustProxy(e.TRUST_PROXY),
+      writeRateLimitPerMinute: e.WRITE_RATE_LIMIT_PER_MINUTE,
     },
     writes: {
       ordersUrl: e.ORDER_SERVICE_URL.replace(/\/+$/, '') || null,

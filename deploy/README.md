@@ -46,7 +46,7 @@ the dashboard shows both. It also runs against docker compose:
 | order-service | catalog-service | prices every order line at checkout; the client's price is ignored |
 | dashboard | catalog-service | reads prices to display what checkout will charge |
 | load generator | order, inventory and procurement APIs | places orders (about 10% cancelled), raises purchase orders when a SKU runs low; scale to 0 to pause |
-| dashboard | order and procurement APIs | the browser's writes (checkout, purchase orders) are proxied by the dashboard API to the owning service; default-deny is opened for that path only |
+| dashboard | order and procurement APIs | the browser's writes (checkout, purchase orders) are proxied by the dashboard API, limited per client address, to the owning service; default-deny is opened for that path only |
 
 Because Strimzi writes each KafkaUser's password Secret and the cluster CA Secret into the same
 namespace, pods mount them directly with no cross-namespace copying. Ingress is denied by default;

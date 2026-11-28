@@ -27,6 +27,11 @@ the catalogue service, so a client cannot set a price; the live store reads the 
 through `GET /api/catalog` (`CATALOG_SERVICE_URL`) to display them, with the table in
 `packages/web/src/lib/catalogue.ts` as the fallback.
 
+Because the public page can write, the proxy limits each client address to
+`WRITE_RATE_LIMIT_PER_MINUTE` writes (default 20, `0` disables) and answers `429` with
+`Retry-After`. Behind Caddy or the Kubernetes gateway set `TRUST_PROXY=1` so the limit follows the
+real address from `X-Forwarded-For`; the limit is per dashboard process.
+
 ![Dashboard](docs/dashboard-desktop.png)
 
 | Package | What |
