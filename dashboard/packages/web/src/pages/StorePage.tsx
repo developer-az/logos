@@ -166,7 +166,7 @@ export function StorePage({
               </button>
             </div>
           ) : (
-            <ul className="shelf">
+            <ul className="shelf" key={category}>
               {visible.map((item, index) => {
                 const name = productName(item.sku);
                 const quantity = quantities[item.sku] ?? 1;
